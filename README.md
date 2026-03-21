@@ -2,15 +2,13 @@
 
 Terminal UI for Subsonic-compatible music servers.
 
-> Requires a [Nerd Font](https://www.nerdfonts.com/) in your terminal for icons.
-
 ![Home tab](docs/discover.png)
 
 ## Requirements
 
 - A running Subsonic-compatible server (Navidrome, Airsonic, etc.)
 - Go 1.21+
-- A Nerd Font in your terminal emulator
+- A [Nerd Font](https://www.nerdfonts.com/) in your terminal emulator
 
 ## Install
 
@@ -46,8 +44,6 @@ volume = 80
 subtonic
 ```
 
-![Albums view](docs/albums.png)
-
 ### Navigation
 
 | Key | Action |
@@ -81,36 +77,9 @@ Press `?` to see all keybindings in the app.
 
 ### Sonos
 
-Press `o` to discover and connect to a Sonos speaker or group. Playback routes directly from the server to the speaker — the TUI controls what plays. Press `o` again to switch back to local audio. The current song and position carry over in both directions.
+Press `o` to discover and connect to a Sonos speaker or group. Playback routes directly from the server to the speaker — the TUI controls what plays. Press `o` again to switch back to local audio.
 
 ![Player bar with Sonos group](docs/sonos.png)
-
-## Tabs
-
-**Home** — Recently added albums displayed as a browsable grid. Navigate with arrow keys or `hjkl`.
-
-**Discover** — Quick actions (random, starred, by genre, similar artists, top songs) plus ListenBrainz sections if a username is configured.
-
-![Discover tab](docs/listenbrainz.png)
-
-**Browse** — Library navigation: Artists, Albums (sorted newest-first), By Genre (sorted A–Z), and Starred items.
-
-**Playlists** — Your playlists. Create, delete, and manage tracks.
-
-**Podcasts** — Podcast subscriptions and episodes.
-
-**Search** — Server-side search across artists, albums, and tracks.
-
-![Search](docs/search.png)
-
-## Player bar
-
-The player bar is a single line showing:
-
-- Play/pause state and queue position (e.g. `3/12`)
-- A gradient progress bar with the track name and artist overlaid on the left, and the current position/duration on the right (e.g. `2:15 / 4:05`)
-- Shuffle 󰒝 and repeat 󰑖/󰑗 indicators (always visible, fixed width)
-- Volume level
 
 ## ListenBrainz
 
@@ -121,3 +90,11 @@ Optional. Add to config to enable trending tracks, fresh releases, and personali
 username = "your-lb-username"
 token    = "your-lb-token"   # only needed for recommendations
 ```
+
+## Screenshots
+
+![Albums view](docs/albums.png)
+
+![Discover tab](docs/listenbrainz.png)
+
+![Search](docs/search.png)
