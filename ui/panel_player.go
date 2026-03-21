@@ -2,11 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"math"
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/progress"
 	"charm.land/lipgloss/v2"
 
 	"github.com/Flipez/subtonic/api"
@@ -14,28 +14,23 @@ import (
 )
 
 type PlayerBar struct {
-	progress   progress.Model
-	song       *api.Song
-	pos        time.Duration
-	total      time.Duration
-	paused     bool
-	volume     int
-	width      int // card-level width (for PlayerBarStyle.Width)
-	audio      player.AudioInfo
-	queueIdx   int
-	queueLen   int
-	shuffle    bool
-	repeat     player.RepeatMode
-	isSonos    bool
-	sonosName  string
+	song      *api.Song
+	pos       time.Duration
+	total     time.Duration
+	paused    bool
+	volume    int
+	width     int // card-level width (for PlayerBarStyle.Width)
+	audio     player.AudioInfo
+	queueIdx  int
+	queueLen  int
+	shuffle   bool
+	repeat    player.RepeatMode
+	isSonos   bool
+	sonosName string
 }
 
 func NewPlayerBar(w int) PlayerBar {
-	prog := progress.New(
-		progress.WithColors(colorFocused, colorHighlight),
-		progress.WithoutPercentage(),
-	)
-	return PlayerBar{progress: prog, width: w, volume: 80}
+	return PlayerBar{width: w, volume: 80}
 }
 
 // SetWidth sets the card-level width (includes padding, not border).
@@ -64,81 +59,66 @@ func (p *PlayerBar) View() string {
 		contentW = 1
 	}
 
-	icon := "▶"
+	icon := IconPlay
 	if p.paused || p.song == nil {
-		icon = "⏸"
+		icon = IconPause
 	}
 
-	var line1, line2 string
-
-	sep := SubtextStyle.Render(" · ")
-
-	if p.song != nil {
-		// Line 1: icon + title · album · artist (left) | queue · shuffle/repeat · specs · star (right)
-		leftParts := []string{NowPlayingStyle.Render(p.song.Title)}
-		if p.song.Album != "" {
-			leftParts = append(leftParts, PlayerAlbumStyle.Render(p.song.Album))
-		}
-		if p.song.Artist != "" {
-			leftParts = append(leftParts, SubtextStyle.Render(p.song.Artist))
-		}
-		left1 := PlayerIconStyle.Render(icon) + "  " + strings.Join(leftParts, sep)
-
-		activeIndicator := lipgloss.NewStyle().Foreground(colorPlaying).Bold(true)
-		var rightParts []string
-		if p.isSonos {
-			name := p.sonosName
-			if name == "" {
-				name = "Sonos"
-			}
-			rightParts = append(rightParts, activeIndicator.Render(fmt.Sprintf("[Sonos: %s]", name)))
-		}
-		if p.queueLen > 0 {
-			rightParts = append(rightParts, PlayerMetaStyle.Render(fmt.Sprintf("%d/%d", p.queueIdx+1, p.queueLen)))
-		}
-		if p.shuffle {
-			rightParts = append(rightParts, activeIndicator.Render("[shuffle]"))
-		}
-		switch p.repeat {
-		case player.RepeatAll:
-			rightParts = append(rightParts, activeIndicator.Render("[repeat]"))
-		case player.RepeatOne:
-			rightParts = append(rightParts, activeIndicator.Render("[repeat 1]"))
-		}
-		if specs := p.renderAudioSpecs(); specs != "" {
-			rightParts = append(rightParts, specs)
-		}
-		if p.song.Starred != "" {
-			rightParts = append(rightParts, "★")
-		}
-		var right1 string
-		if len(rightParts) > 0 {
-			right1 = strings.Join(rightParts, sep)
-		}
-		line1 = padLine(left1, right1, contentW)
-	} else {
-		line1 = PlayerIconStyle.Render(icon) + "  " + SubtextStyle.Render("No track playing")
+	// prefix: icon + queue position
+	queueStr := ""
+	if p.queueLen > 0 {
+		queueStr = PlayerMetaStyle.Render(fmt.Sprintf("%d/%d", p.queueIdx+1, p.queueLen)) + "  "
 	}
+	prefix := PlayerIconStyle.Render(icon) + "  " + queueStr
 
-	// Line 2: progress bar + time + volume
-	pct := 0.0
-	if p.total > 0 {
-		pct = float64(p.pos) / float64(p.total)
-	}
-
+	// right side: time + vol + indicators
 	timeStr := PlayerTimeStyle.Render(fmt.Sprintf("%s / %s", formatDuration(p.pos), formatDuration(p.total)))
 	volStr := renderVolume(p.volume)
-	rightSide := timeStr + "  " + volStr
 
-	barW := contentW - lipgloss.Width(rightSide) - 2
-	if barW < 10 {
-		barW = 10
+	activeIndicator := lipgloss.NewStyle().Foreground(colorPlaying).Bold(true)
+	var indicators []string
+	if p.isSonos {
+		name := p.sonosName
+		if name == "" {
+			name = "Sonos"
+		}
+		indicators = append(indicators, activeIndicator.Render(fmt.Sprintf("%s %s", IconCast, name)))
 	}
-	p.progress.SetWidth(barW)
-	bar := p.progress.ViewAs(pct)
-	line2 = bar + "  " + rightSide
+	if p.shuffle {
+		indicators = append(indicators, activeIndicator.Render(IconShuffle))
+	}
+	switch p.repeat {
+	case player.RepeatAll:
+		indicators = append(indicators, activeIndicator.Render(IconRepeatAll))
+	case player.RepeatOne:
+		indicators = append(indicators, activeIndicator.Render(IconRepeatOne))
+	}
+	rightParts := append(indicators, timeStr, volStr)
+	rightSide := strings.Join(rightParts, "  ")
 
-	content := lipgloss.JoinVertical(lipgloss.Left, line1, "", line2)
+	prefixW := lipgloss.Width(prefix)
+	rightW := lipgloss.Width(rightSide)
+	barRegionW := contentW - prefixW - rightW - 2 // 2 for gap before rightSide
+	if barRegionW < 10 {
+		barRegionW = 10
+	}
+
+	var line string
+	if p.song != nil {
+		pct := 0.0
+		if p.total > 0 {
+			pct = float64(p.pos) / float64(p.total)
+		}
+		barRegion := renderTrackProgressBar(p.song.Title, p.song.Artist, pct, barRegionW)
+		line = prefix + barRegion + "  " + rightSide
+	} else {
+		noTrack := SubtextStyle.Render("No track playing")
+		gap := contentW - lipgloss.Width(prefix) - lipgloss.Width(noTrack) - rightW - 2
+		if gap < 1 {
+			gap = 1
+		}
+		line = prefix + noTrack + strings.Repeat(" ", gap) + "  " + rightSide
+	}
 
 	// Dynamic border color
 	borderColor := colorUnfocused
@@ -150,69 +130,63 @@ func (p *PlayerBar) View() string {
 		}
 	}
 
-	return PlayerBarStyle.Width(p.width).BorderForeground(borderColor).Render(content)
+	return PlayerBarStyle.Width(p.width).BorderForeground(borderColor).Render(line)
 }
 
-// renderAudioSpecs builds a string like "FLAC 96.0kHz/24bit stereo 14.2MB ⟳"
-func (p *PlayerBar) renderAudioSpecs() string {
-	if p.song == nil || p.audio.SampleRate == 0 {
-		return ""
+// renderTrackProgressBar renders a bar of `width` chars with the track text overlaid on top.
+// The filled portion has a gradient from colorFocused (left) to colorHighlight (right).
+func renderTrackProgressBar(title, artist string, pct float64, width int) string {
+	full := title
+	if artist != "" {
+		full += " · " + artist
+	}
+	text := truncateStr(" "+full, width)
+	runes := []rune(text)
+	textLen := len(runes)
+	fillEnd := int(pct * float64(width))
+	if fillEnd > width {
+		fillEnd = width
 	}
 
-	var parts []string
+	emptyTextStyle := lipgloss.NewStyle().Background(colorUnfocused).Foreground(colorSubtext)
+	emptyBarStyle := lipgloss.NewStyle().Background(colorUnfocused)
 
-	// Codec
-	if p.song.Suffix != "" {
-		parts = append(parts, strings.ToUpper(p.song.Suffix))
-	}
-
-	// Sample rate + bit depth
-	sr := float64(p.audio.SampleRate) / 1000.0
-	var srStr string
-	if sr == float64(int(sr)) {
-		srStr = fmt.Sprintf("%gkHz", sr)
-	} else {
-		srStr = fmt.Sprintf("%.1fkHz", sr)
-	}
-	if p.audio.BitDepth > 0 {
-		srStr += fmt.Sprintf("/%dbit", p.audio.BitDepth)
-	}
-	parts = append(parts, srStr)
-
-	// Channels
-	switch p.audio.Channels {
-	case 1:
-		parts = append(parts, "mono")
-	case 2:
-		parts = append(parts, "stereo")
-	default:
-		if p.audio.Channels > 0 {
-			parts = append(parts, fmt.Sprintf("%dch", p.audio.Channels))
+	var b strings.Builder
+	for i := 0; i < width; i++ {
+		var ch string
+		if i < textLen {
+			ch = string(runes[i])
+		} else {
+			ch = " "
+		}
+		if i < fillEnd {
+			// gradient: colorFocused → colorHighlight across full bar width
+			t := float64(i) / float64(max(width-1, 1))
+			bg := lerpColor(colorFocused, colorHighlight, t)
+			if i < textLen {
+				b.WriteString(lipgloss.NewStyle().Background(bg).Foreground(colorUnfocused).Render(ch))
+			} else {
+				b.WriteString(lipgloss.NewStyle().Background(bg).Render(ch))
+			}
+		} else {
+			if i < textLen {
+				b.WriteString(emptyTextStyle.Render(ch))
+			} else {
+				b.WriteString(emptyBarStyle.Render(ch))
+			}
 		}
 	}
-
-	// File size
-	if p.song.Size > 0 {
-		parts = append(parts, formatSize(p.song.Size))
-	}
-
-	dimMeta := lipgloss.NewStyle().Foreground(colorDimText)
-	return dimMeta.Render(strings.Join(parts, "  "))
+	return b.String()
 }
 
-func formatSize(bytes int64) string {
-	const (
-		mb = 1024 * 1024
-		gb = 1024 * 1024 * 1024
-	)
-	switch {
-	case bytes >= gb:
-		return fmt.Sprintf("%.1fGB", float64(bytes)/float64(gb))
-	case bytes >= mb:
-		return fmt.Sprintf("%.1fMB", float64(bytes)/float64(mb))
-	default:
-		return fmt.Sprintf("%dKB", bytes/1024)
-	}
+// lerpColor linearly interpolates between two colors, t in [0,1].
+func lerpColor(c1, c2 color.Color, t float64) color.Color {
+	r1, g1, b1, _ := c1.RGBA()
+	r2, g2, b2, _ := c2.RGBA()
+	r := uint8((float64(r1) + t*(float64(r2)-float64(r1))) / 257.0)
+	g := uint8((float64(g1) + t*(float64(g2)-float64(g1))) / 257.0)
+	b := uint8((float64(b1) + t*(float64(b2)-float64(b1))) / 257.0)
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
 }
 
 // renderVolume produces a mini volume bar like "vol ████░ 80%"
@@ -231,7 +205,7 @@ func renderVolume(vol int) string {
 	emptyStyle := lipgloss.NewStyle().Foreground(colorUnfocused)
 
 	bar := filledStyle.Render(strings.Repeat("█", filled)) + emptyStyle.Render(strings.Repeat("░", empty))
-	return PlayerMetaStyle.Render("vol ") + bar + PlayerMetaStyle.Render(fmt.Sprintf(" %d%%", vol))
+	return PlayerMetaStyle.Render(IconVolume+" ") + bar + PlayerMetaStyle.Render(fmt.Sprintf(" %d%%", vol))
 }
 
 // padLine joins left and right text, filling the gap with spaces to reach width.
@@ -253,4 +227,19 @@ func formatDuration(d time.Duration) string {
 	m := int(d.Minutes())
 	s := int(d.Seconds()) % 60
 	return fmt.Sprintf("%d:%02d", m, s)
+}
+
+func formatSize(bytes int64) string {
+	const (
+		mb = 1024 * 1024
+		gb = 1024 * 1024 * 1024
+	)
+	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1fGB", float64(bytes)/float64(gb))
+	case bytes >= mb:
+		return fmt.Sprintf("%.1fMB", float64(bytes)/float64(mb))
+	default:
+		return fmt.Sprintf("%dKB", bytes/1024)
+	}
 }

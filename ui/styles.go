@@ -7,6 +7,22 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
+// Nerd Font (nf-md) icons.
+const (
+	IconPlay         = "󰐊" // nf-md-play           U+F040A
+	IconPause        = "󰏤" // nf-md-pause          U+F03E4
+	IconShuffle      = "󰒝" // nf-md-shuffle        U+F049D
+	IconRepeatAll    = "󰑖" // nf-md-repeat         U+F0456
+	IconRepeatOne    = "󰑗" // nf-md-repeat_once    U+F0457
+	IconCast         = "󰒅" // nf-md-cast           U+F0485
+	IconVolume       = "󰕾" // nf-md-volume_high    U+F057E
+	IconHeart        = "󰋑" // nf-md-heart          U+F02D1
+	IconHeartOutline = "󰋒" // nf-md-heart_outline  U+F02D2
+	IconChevronRight = "󰅂" // nf-md-chevron_right  U+F0142
+	IconCheck        = "󰄬" // nf-md-check          U+F012C
+	IconClose        = "󰅖" // nf-md-close          U+F0156
+)
+
 // Color palette — set by InitTheme.
 var (
 	colorFocused   color.Color

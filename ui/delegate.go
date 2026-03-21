@@ -222,7 +222,7 @@ func (d CompactDelegate) renderSegments(w io.Writer, segs []segment, selected bo
 
 func starPrefix(starred string) string {
 	if starred != "" {
-		return "★ "
+		return IconHeart + " "
 	}
 	return "  "
 }

@@ -798,9 +798,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cur.Starred = starVal
 		}
 		m.buildTable()
-		label := "★ Starred"
+		label := IconHeart + " Starred"
 		if !msg.Starred {
-			label = "☆ Unstarred"
+			label = IconHeartOutline + " Unstarred"
 		}
 		return m, m.showToast(label, ToastSuccess, toastShort)
 
@@ -1783,7 +1783,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 
 	heart := func(song api.Song) string {
 		if song.Starred != "" {
-			return "♥"
+			return IconHeart
 		}
 		return ""
 	}
@@ -1807,13 +1807,13 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 			{Title: "Artist", Width: artistW},
 			{Title: "Album", Width: albumW},
 			{Title: "Time", Width: timeW},
-			{Title: "♥", Width: heartW},
+			{Title: IconHeart, Width: heartW},
 		}
 		rows := make([]table.Row, len(songs))
 		for i, song := range songs {
 			if song.ID == "" {
 				rows[i] = table.Row{
-					dimStyle.Render("✗"),
+					dimStyle.Render(IconClose),
 					dimStyle.Render(song.Title),
 					dimStyle.Render(song.Artist),
 					dimStyle.Render(song.Album),
@@ -1850,7 +1850,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 		{Title: "Title", Width: titleW},
 		{Title: "Artist", Width: artistW},
 		{Title: "Time", Width: timeW},
-		{Title: "♥", Width: heartW},
+		{Title: IconHeart, Width: heartW},
 	}
 	rows := make([]table.Row, len(songs))
 	for i, song := range songs {
@@ -1858,7 +1858,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 		durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
 		if song.ID == "" {
 			rows[i] = table.Row{
-				dimStyle.Render("✗"),
+				dimStyle.Render(IconClose),
 				dimStyle.Render(song.Title),
 				dimStyle.Render(song.Artist),
 				"", "",
@@ -2002,7 +2002,7 @@ func (m *Model) buildQueueTable() ([]table.Column, []table.Row) {
 	for i, song := range songs {
 		marker := " "
 		if i == queueIdx {
-			marker = "▶"
+			marker = IconPlay
 		}
 		durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
 		rows[i] = table.Row{
@@ -2062,7 +2062,7 @@ func (m *Model) buildBrowseTable() ([]table.Column, []table.Row) {
 func (m *Model) relayout() {
 	headerH := 3
 	breadcrumbH := 1
-	playerH := 5
+	playerH := 3
 	contentBorder := 2
 	helpH := 1
 	contentHeight := m.height - headerH - breadcrumbH - playerH - contentBorder - helpH
@@ -2116,7 +2116,7 @@ func (m Model) View() tea.View {
 	// Content dimensions for spinner placement
 	headerH := 3
 	breadcrumbH := 1
-	playerH := 5
+	playerH := 3
 	contentBorder := 2
 	helpH := 1
 	contentHeight := m.height - headerH - breadcrumbH - playerH - contentBorder - helpH

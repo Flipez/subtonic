@@ -138,7 +138,7 @@ func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) st
 			if isFocused {
 				arrowStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
 			}
-			arrow := arrowStyle.Render("▶")
+			arrow := arrowStyle.Render(IconChevronRight)
 			padding := contentW - lipgloss.Width(labelText) - lipgloss.Width(arrow) - 2
 			if padding < 1 {
 				padding = 1
@@ -363,7 +363,7 @@ func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused boo
 		var indicator string
 
 		if dt.Available {
-			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render("✓")
+			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render(IconCheck)
 			if selected {
 				borderColor = colorFocused
 				nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
@@ -373,7 +373,7 @@ func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused boo
 			}
 			artistStyle = SubtextStyle
 		} else {
-			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render("✗")
+			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render(IconClose)
 			if selected {
 				borderColor = colorDimText
 			} else {
@@ -450,7 +450,7 @@ func (m *Model) renderReleaseRow(releases []DiscoverRelease, contentW int, focus
 		var indicator string
 
 		if dr.Available {
-			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render("✓")
+			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render(IconCheck)
 			if selected {
 				borderColor = colorFocused
 				nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
@@ -460,7 +460,7 @@ func (m *Model) renderReleaseRow(releases []DiscoverRelease, contentW int, focus
 			}
 			artistStyle = SubtextStyle
 		} else {
-			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render("✗")
+			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render(IconClose)
 			if selected {
 				borderColor = colorDimText
 			} else {
