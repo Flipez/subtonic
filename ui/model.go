@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -1668,6 +1669,7 @@ func (m *Model) buildGenresTable() ([]table.Column, []table.Row) {
 		contentW = 1
 	}
 	genres, _ := m.viewData.([]api.Genre)
+	slices.SortFunc(genres, func(a, b api.Genre) int { return strings.Compare(a.Name, b.Name) })
 	numCols := 3
 	padding := 2 * numCols
 	songsW := 8
@@ -1719,6 +1721,18 @@ func (m *Model) buildAlbumsTable() ([]table.Column, []table.Row) {
 		contentW = 1
 	}
 	albums, _ := m.viewData.([]api.Album)
+	slices.SortFunc(albums, func(a, b api.Album) int {
+		if a.Year == b.Year {
+			return 0
+		}
+		if a.Year == 0 {
+			return 1 // zero year goes last
+		}
+		if b.Year == 0 {
+			return -1
+		}
+		return b.Year - a.Year // descending: newest first
+	})
 	numCols := 4
 	padding := 2 * numCols
 	yearW := 4
@@ -1731,9 +1745,9 @@ func (m *Model) buildAlbumsTable() ([]table.Column, []table.Row) {
 	nameW := remaining * 50 / 100
 	artistW := remaining - nameW
 	cols := []table.Column{
+		{Title: "Year", Width: yearW},
 		{Title: "Name", Width: nameW},
 		{Title: "Artist", Width: artistW},
-		{Title: "Year", Width: yearW},
 		{Title: "Tracks", Width: tracksW},
 	}
 	rows := make([]table.Row, len(albums))
@@ -1742,7 +1756,7 @@ func (m *Model) buildAlbumsTable() ([]table.Column, []table.Row) {
 		if album.Year > 0 {
 			yearStr = fmt.Sprintf("%d", album.Year)
 		}
-		rows[i] = table.Row{album.Name, album.Artist, yearStr, fmt.Sprintf("%d", album.SongCount)}
+		rows[i] = table.Row{yearStr, album.Name, album.Artist, fmt.Sprintf("%d", album.SongCount)}
 	}
 	return cols, rows
 }
