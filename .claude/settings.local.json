@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue:*)",
+      "WebFetch(domain:listenbrainz.readthedocs.io)",
+      "WebFetch(domain:api.listenbrainz.org)"
+    ]
+  }
+}
