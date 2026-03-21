@@ -25,8 +25,8 @@ type PlayerBar struct {
 	queueLen  int
 	shuffle   bool
 	repeat    player.RepeatMode
-	isSonos   bool
-	sonosName string
+	isSonos    bool
+	sonosCount int
 
 	gradient  []color.Color // cached Blend1D result; recomputed only on width change
 	gradientW int
@@ -41,7 +41,7 @@ func (p *PlayerBar) SetWidth(w int) {
 	p.width = w
 }
 
-func (p *PlayerBar) Update(song *api.Song, pos, total time.Duration, paused bool, vol int, audio player.AudioInfo, queueIdx, queueLen int, shuffle bool, repeat player.RepeatMode, isSonos bool, sonosName string) {
+func (p *PlayerBar) Update(song *api.Song, pos, total time.Duration, paused bool, vol int, audio player.AudioInfo, queueIdx, queueLen int, shuffle bool, repeat player.RepeatMode, isSonos bool, sonosCount int) {
 	p.song = song
 	p.pos = pos
 	p.total = total
@@ -53,7 +53,7 @@ func (p *PlayerBar) Update(song *api.Song, pos, total time.Duration, paused bool
 	p.shuffle = shuffle
 	p.repeat = repeat
 	p.isSonos = isSonos
-	p.sonosName = sonosName
+	p.sonosCount = sonosCount
 }
 
 func (p *PlayerBar) View() string {
@@ -92,11 +92,7 @@ func (p *PlayerBar) View() string {
 	volStr := renderVolume(p.volume)
 	var rightParts []string
 	if p.isSonos {
-		name := p.sonosName
-		if name == "" {
-			name = "Sonos"
-		}
-		rightParts = append(rightParts, activeIndicator.Render(fmt.Sprintf("%s %s", IconCast, name)))
+		rightParts = append(rightParts, activeIndicator.Render(fmt.Sprintf("%s %d Speakers", IconCast, p.sonosCount)))
 	}
 	rightParts = append(rightParts, shuffleStr, repeatStr, volStr)
 	rightSide := strings.Join(rightParts, "  ")

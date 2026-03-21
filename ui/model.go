@@ -557,7 +557,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TickMsg:
 		pos, total := m.pl.Progress()
 		q := m.pl.Queue()
-		m.bar.Update(m.pl.CurrentSong(), pos, total, m.pl.IsPaused(), m.pl.Volume(), m.pl.AudioInfo(), q.Index(), len(q.Songs()), q.Shuffle(), q.Repeat(), m.pl.IsSonosMode(), m.pl.SonosDeviceName())
+		m.bar.Update(m.pl.CurrentSong(), pos, total, m.pl.IsPaused(), m.pl.Volume(), m.pl.AudioInfo(), q.Index(), len(q.Songs()), q.Shuffle(), q.Repeat(), m.pl.IsSonosMode(), m.pl.SonosGroupSize())
 		// Detect artist change for ListenBrainz popular-by-artist
 		var cmds []tea.Cmd
 		if song := m.pl.CurrentSong(); song != nil && song.Artist != m.lbCurrentArtist {

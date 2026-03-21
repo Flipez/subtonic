@@ -14,7 +14,7 @@ const (
 	IconShuffle      = "󰒝" // nf-md-shuffle        U+F049D
 	IconRepeatAll    = "󰑖" // nf-md-repeat         U+F0456
 	IconRepeatOne    = "󰑗" // nf-md-repeat_once    U+F0457
-	IconCast         = "󰒅" // nf-md-cast           U+F0485
+	IconCast         = "󰓃" // nf-md-speaker U+F04C3
 	IconVolume       = "󰕾" // nf-md-volume_high    U+F057E
 	IconHeart        = "󰋑" // nf-md-heart          U+F02D1
 	IconHeartOutline = "󰋒" // nf-md-heart_outline  U+F02D2

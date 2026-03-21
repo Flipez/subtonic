@@ -4,7 +4,7 @@ Terminal UI for Subsonic-compatible music servers.
 
 > Requires a [Nerd Font](https://www.nerdfonts.com/) in your terminal for icons.
 
-![Discover tab](docs/discover.png)
+![Home tab](docs/discover.png)
 
 ## Requirements
 
@@ -90,6 +90,8 @@ Press `o` to discover and connect to a Sonos speaker or group. Playback routes d
 **Home** — Recently added albums displayed as a browsable grid. Navigate with arrow keys or `hjkl`.
 
 **Discover** — Quick actions (random, starred, by genre, similar artists, top songs) plus ListenBrainz sections if a username is configured.
+
+![Discover tab](docs/listenbrainz.png)
 
 **Browse** — Library navigation: Artists, Albums (sorted newest-first), By Genre (sorted A–Z), and Starred items.
 

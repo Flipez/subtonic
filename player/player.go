@@ -565,3 +565,13 @@ func (p *Player) SonosDeviceName() string {
 	}
 	return p.sonosClient.DeviceName()
 }
+
+// SonosGroupSize returns the number of speakers in the active Sonos group.
+func (p *Player) SonosGroupSize() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.sonosClient == nil {
+		return 0
+	}
+	return p.sonosClient.GroupSize()
+}
