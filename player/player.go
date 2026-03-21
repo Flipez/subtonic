@@ -24,6 +24,9 @@ import (
 
 const sampleRate = beep.SampleRate(48000)
 
+// kbpsToBytesPerSec converts kbps to bytes/sec: kbps * 1000 / 8 = kbps * 125
+const kbpsToBytesPerSec = 125
+
 type SongEndedMsg struct{}
 
 type Player struct {
@@ -92,8 +95,8 @@ func (p *Player) PlayFrom(song api.Song, streamURL string, seekPos time.Duration
 	isMp3 := suffix == "mp3" || suffix == ""
 
 	if isMp3 && song.BitRate > 0 {
-		// BitRate is kbps: bytes/s = kbps * 1000 / 8 = kbps * 125
-		byteOffset := int64(seekPos.Seconds()) * int64(song.BitRate) * 125
+		// BitRate is kbps: bytes/s = kbps * 1000 / 8 = kbps * kbpsToBytesPerSec
+		byteOffset := int64(seekPos.Seconds()) * int64(song.BitRate) * kbpsToBytesPerSec
 		return p.playAt(song, streamURL, byteOffset)
 	}
 

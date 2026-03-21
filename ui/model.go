@@ -31,6 +31,11 @@ const (
 	TabSearch
 )
 
+const (
+	toastShort = 2 * time.Second
+	toastLong  = 5 * time.Second
+)
+
 type ViewType int
 
 const (
@@ -272,8 +277,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key.Matches(msg, GlobalKeys.Delete) {
 				id := m.deleteConfirmID
 				m.deleteConfirmID = ""
-				m.loading = true
-				return m, tea.Batch(deletePlaylistCmd(m.api, id), m.spinner.Tick)
+				return m.loadWithSpinner(deletePlaylistCmd(m.api, id))
 			}
 			m.deleteConfirmID = ""
 			return m, nil
@@ -369,7 +373,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.pl.Queue().Shuffle() {
 				label = "Shuffle on"
 			}
-			return m, m.showToast(label, ToastInfo, 2*time.Second)
+			return m, m.showToast(label, ToastInfo, toastShort)
 
 		case key.Matches(msg, GlobalKeys.Repeat):
 			m.pl.Queue().CycleRepeat()
@@ -382,7 +386,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case player.RepeatOne:
 				label = "Repeat one"
 			}
-			return m, m.showToast(label, ToastInfo, 2*time.Second)
+			return m, m.showToast(label, ToastInfo, toastShort)
 
 		case key.Matches(msg, GlobalKeys.Star):
 			return m.handleStar()
@@ -552,7 +556,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ArtistsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading artists: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading artists: %v", msg.Err), ToastError, toastLong)
 		}
 		m.artists = msg.Artists
 		if m.activeTab == TabArtists && len(m.navStack) == 0 {
@@ -563,7 +567,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AlbumListLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading albums: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading albums: %v", msg.Err), ToastError, toastLong)
 		}
 		m.albumList = msg.Albums
 		if m.activeTab == TabAlbums && len(m.navStack) == 0 {
@@ -574,7 +578,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ArtistLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading artist: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading artist: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Artist != nil {
 			m.setView(ViewAlbums, msg.Artist.Albums)
@@ -584,7 +588,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AlbumLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading album: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading album: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Album != nil {
 			m.setView(ViewSongs, msg.Album.Songs)
@@ -594,7 +598,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlaylistsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading playlists: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading playlists: %v", msg.Err), ToastError, toastLong)
 		}
 		m.playlists = msg.Playlists
 		if m.activeTab == TabPlaylists && len(m.navStack) == 0 {
@@ -605,7 +609,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlaylistLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading playlist: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading playlist: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Playlist != nil {
 			m.setView(ViewSongs, msg.Playlist.Songs)
@@ -615,10 +619,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlaylistCreatedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error creating playlist: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error creating playlist: %v", msg.Err), ToastError, toastLong)
 		}
 		var cmds []tea.Cmd
-		cmds = append(cmds, m.showToast("Playlist created", ToastSuccess, 2*time.Second))
+		cmds = append(cmds, m.showToast("Playlist created", ToastSuccess, toastShort))
 		if msg.Playlist != nil && len(m.pendingSongIDs) > 0 {
 			ids := m.pendingSongIDs
 			m.pendingSongIDs = nil
@@ -630,17 +634,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlaylistUpdatedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error updating playlist: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error updating playlist: %v", msg.Err), ToastError, toastLong)
 		}
 		return m, tea.Batch(
 			loadPlaylistsCmd(m.api),
-			m.showToast("Playlist updated", ToastSuccess, 2*time.Second),
+			m.showToast("Playlist updated", ToastSuccess, toastShort),
 		)
 
 	case PlaylistDeletedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error deleting playlist: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error deleting playlist: %v", msg.Err), ToastError, toastLong)
 		}
 		var filtered []api.Playlist
 		for _, p := range m.playlists {
@@ -652,12 +656,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeTab == TabPlaylists && len(m.navStack) == 0 {
 			m.setView(ViewPlaylists, m.playlists)
 		}
-		return m, m.showToast("Playlist deleted", ToastSuccess, 2*time.Second)
+		return m, m.showToast("Playlist deleted", ToastSuccess, toastShort)
 
 	case PodcastsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading podcasts: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading podcasts: %v", msg.Err), ToastError, toastLong)
 		}
 		m.podcasts = msg.Podcasts
 		if m.activeTab == TabPodcasts && len(m.navStack) == 0 {
@@ -668,7 +672,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PodcastLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading podcast: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading podcast: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Podcast != nil {
 			m.setView(ViewEpisodes, msg.Podcast.Episodes)
@@ -678,7 +682,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SearchResultMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Search error: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Search error: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Result != nil {
 			items := buildSearchResults(msg.Result)
@@ -689,7 +693,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RandomSongsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading random songs: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading random songs: %v", msg.Err), ToastError, toastLong)
 		}
 		m.setView(ViewSongs, msg.Songs)
 		return m, nil
@@ -697,7 +701,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StarredLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading starred: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading starred: %v", msg.Err), ToastError, toastLong)
 		}
 		if msg.Result != nil {
 			items := buildSearchResults(msg.Result)
@@ -708,7 +712,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GenresLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading genres: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading genres: %v", msg.Err), ToastError, toastLong)
 		}
 		m.setView(ViewGenres, msg.Genres)
 		return m, nil
@@ -716,7 +720,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SongsByGenreLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading songs by genre: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading songs by genre: %v", msg.Err), ToastError, toastLong)
 		}
 		m.setView(ViewSongs, msg.Songs)
 		return m, nil
@@ -724,7 +728,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SimilarSongsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading similar songs: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading similar songs: %v", msg.Err), ToastError, toastLong)
 		}
 		m.setView(ViewSongs, msg.Songs)
 		return m, nil
@@ -732,14 +736,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TopSongsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading top songs: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading top songs: %v", msg.Err), ToastError, toastLong)
 		}
 		m.setView(ViewSongs, msg.Songs)
 		return m, nil
 
 	case StarToggledMsg:
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Star error: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Star error: %v", msg.Err), ToastError, toastLong)
 		}
 		starVal := ""
 		if msg.Starred {
@@ -762,12 +766,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !msg.Starred {
 			label = "☆ Unstarred"
 		}
-		return m, m.showToast(label, ToastSuccess, 2*time.Second)
+		return m, m.showToast(label, ToastSuccess, toastShort)
 
 	case DiscoverDataLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Discover error: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Discover error: %v", msg.Err), ToastError, toastLong)
 		}
 		m.discoverRecent = msg.Recent
 		m.discoverNewest = msg.Newest
@@ -814,10 +818,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SonosDiscoveredMsg:
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Sonos discovery error: %v", msg.Err), ToastError, 4*time.Second)
+			return m, m.showToast(fmt.Sprintf("Sonos discovery error: %v", msg.Err), ToastError, toastLong)
 		}
 		if len(msg.Devices) == 0 {
-			return m, m.showToast("No Sonos speakers found", ToastInfo, 3*time.Second)
+			return m, m.showToast("No Sonos speakers found", ToastInfo, toastShort)
 		}
 		m.sonosDevices = msg.Devices
 		if len(msg.Devices) == 1 {
@@ -835,10 +839,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AllSongsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
-			return m, m.showToast(fmt.Sprintf("Error loading songs: %v", msg.Err), ToastError, 5*time.Second)
+			return m, m.showToast(fmt.Sprintf("Error loading songs: %v", msg.Err), ToastError, toastLong)
 		}
 		if len(msg.Songs) == 0 {
-			return m, m.showToast("No songs found", ToastInfo, 2*time.Second)
+			return m, m.showToast("No songs found", ToastInfo, toastShort)
 		}
 		m.pl.Queue().Set(msg.Songs, 0)
 		if !m.pl.Queue().Shuffle() {
@@ -855,9 +859,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case ShowToastMsg:
-		dur := 3 * time.Second
+		dur := toastShort
 		if msg.Level == ToastError {
-			dur = 5 * time.Second
+			dur = toastLong
 		}
 		return m, m.showToast(msg.Text, msg.Level, dur)
 
@@ -923,8 +927,7 @@ func (m *Model) updateServerSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.serverSearching = false
 		m.serverInput.Blur()
-		m.loading = true
-		return m, tea.Batch(searchCmd(m.api, query), m.spinner.Tick)
+		return m.loadWithSpinner(searchCmd(m.api, query))
 	case "esc":
 		m.serverSearching = false
 		m.serverInput.Blur()
@@ -1177,13 +1180,13 @@ func (m *Model) refresh() (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 	case TabArtists:
-		return m, tea.Batch(loadArtistsCmd(m.api), m.spinner.Tick)
+		return m.loadWithSpinner(loadArtistsCmd(m.api))
 	case TabAlbums:
-		return m, tea.Batch(loadAlbumListCmd(m.api), m.spinner.Tick)
+		return m.loadWithSpinner(loadAlbumListCmd(m.api))
 	case TabPlaylists:
-		return m, tea.Batch(loadPlaylistsCmd(m.api), m.spinner.Tick)
+		return m.loadWithSpinner(loadPlaylistsCmd(m.api))
 	case TabPodcasts:
-		return m, tea.Batch(loadPodcastsCmd(m.api), m.spinner.Tick)
+		return m.loadWithSpinner(loadPodcastsCmd(m.api))
 	}
 	m.loading = false
 	return m, nil
@@ -1229,153 +1232,173 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 
 	switch m.viewType {
 	case ViewDiscover:
-		options, _ := m.viewData.([]DiscoverOption)
-		if idx < 0 || idx >= len(options) {
-			return m, nil
-		}
-		opt := options[idx]
-		switch opt.Action {
-		case "random":
-			m.pushNav("Random Songs")
-			m.loading = true
-			return m, tea.Batch(loadRandomSongsCmd(m.api), m.spinner.Tick)
-		case "starred":
-			m.pushNav("Starred")
-			m.loading = true
-			return m, tea.Batch(loadStarredCmd(m.api), m.spinner.Tick)
-		case "genres":
-			m.pushNav("By Genre")
-			m.loading = true
-			return m, tea.Batch(loadGenresCmd(m.api), m.spinner.Tick)
-		case "similar":
-			song := m.pl.CurrentSong()
-			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, 3*time.Second)
-			}
-			m.pushNav("Similar")
-			m.loading = true
-			return m, tea.Batch(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID), m.spinner.Tick)
-		case "top":
-			song := m.pl.CurrentSong()
-			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, 3*time.Second)
-			}
-			m.pushNav("Top Songs")
-			m.loading = true
-			return m, tea.Batch(loadTopSongsCmd(m.api, song.Artist), m.spinner.Tick)
-		}
-		return m, nil
-
+		return m.handleEnterDiscover(idx)
 	case ViewGenres:
-		genres, _ := m.viewData.([]api.Genre)
-		if idx < 0 || idx >= len(genres) {
-			return m, nil
-		}
-		g := genres[idx]
-		m.pushNav(g.Name)
-		m.loading = true
-		return m, tea.Batch(loadSongsByGenreCmd(m.api, g.Name), m.spinner.Tick)
-
+		return m.handleEnterGenres(idx)
 	case ViewArtists:
-		artists := m.viewData.([]api.Artist)
-		if idx < 0 || idx >= len(artists) {
-			return m, nil
-		}
-		a := artists[idx]
-		m.pushNav(a.Name)
-
-		m.loading = true
-		return m, tea.Batch(loadArtistCmd(m.api, a.ID), m.spinner.Tick)
-
+		return m.handleEnterArtists(idx)
 	case ViewAlbums:
-		albums := m.viewData.([]api.Album)
-		if idx < 0 || idx >= len(albums) {
-			return m, nil
-		}
-		a := albums[idx]
-		m.pushNav(a.Name)
-
-		m.loading = true
-		return m, tea.Batch(loadAlbumCmd(m.api, a.ID), m.spinner.Tick)
-
+		return m.handleEnterAlbums(idx)
 	case ViewPlaylists:
-		playlists := m.viewData.([]api.Playlist)
-		if idx < 0 || idx >= len(playlists) {
-			return m, nil
-		}
-		p := playlists[idx]
-		m.currentPlaylistID = p.ID
-		m.pushNav(p.Name)
-		m.loading = true
-		return m, tea.Batch(loadPlaylistCmd(m.api, p.ID), m.spinner.Tick)
-
+		return m.handleEnterPlaylists(idx)
 	case ViewSongs:
-		songs := m.viewData.([]api.Song)
-		if idx < 0 || idx >= len(songs) {
-			return m, nil
-		}
-		if songs[idx].ID == "" {
-			return m, m.showToast("Not in library", ToastInfo, 2*time.Second)
-		}
-		return m, m.playSong(songs[idx])
-
+		return m.handleEnterSongs(idx)
 	case ViewPodcasts:
-		podcasts := m.viewData.([]api.Podcast)
-		if idx < 0 || idx >= len(podcasts) {
-			return m, nil
-		}
-		p := podcasts[idx]
-		m.pushNav(p.Title)
-
-		m.loading = true
-		return m, tea.Batch(loadPodcastCmd(m.api, p.ID), m.spinner.Tick)
-
+		return m.handleEnterPodcasts(idx)
 	case ViewEpisodes:
-		episodes := m.viewData.([]api.PodcastEpisode)
-		if idx < 0 || idx >= len(episodes) {
-			return m, nil
-		}
-		return m, m.playEpisode(episodes[idx])
-
+		return m.handleEnterEpisodes(idx)
 	case ViewSearchResults:
-		items := m.viewData.([]SearchResultItem)
-		if idx < 0 || idx >= len(items) {
-			return m, nil
-		}
-		item := items[idx]
-		switch item.Type {
-		case "artist":
-			m.pushNav(item.Artist.Name)
-			m.loading = true
-			return m, tea.Batch(loadArtistCmd(m.api, item.Artist.ID), m.spinner.Tick)
-		case "album":
-			m.pushNav(item.Album.Name)
-			m.loading = true
-			return m, tea.Batch(loadAlbumCmd(m.api, item.Album.ID), m.spinner.Tick)
-		case "song":
-			return m, m.playSongFromSearch(item.Song)
-		}
-
+		return m.handleEnterSearchResults(idx)
 	case ViewQueue:
-		songs := m.pl.Queue().Songs()
-		if idx < 0 || idx >= len(songs) {
-			return m, nil
-		}
-		m.pl.Queue().SetIndex(idx)
-		song := songs[idx]
-		streamURL := m.api.StreamURL(song.ID)
-		s := song
-		return m, func() tea.Msg {
-			if err := m.pl.Play(s, streamURL); err != nil {
-				return ShowToastMsg{Text: fmt.Sprintf("Play error: %v", err), Level: ToastError}
-			}
-			go m.api.Scrobble(s.ID) //nolint:errcheck
-			return ShowToastMsg{Text: fmt.Sprintf("Now playing: %s — %s", s.Title, s.Artist), Level: ToastSuccess}
-		}
-
+		return m.handleEnterQueue(idx)
 	}
 
 	return m, nil
+}
+
+func (m *Model) loadWithSpinner(cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	m.loading = true
+	return m, tea.Batch(cmd, m.spinner.Tick)
+}
+
+func (m *Model) handleEnterDiscover(idx int) (tea.Model, tea.Cmd) {
+	options, _ := m.viewData.([]DiscoverOption)
+	if idx < 0 || idx >= len(options) {
+		return m, nil
+	}
+	opt := options[idx]
+	switch opt.Action {
+	case "random":
+		m.pushNav("Random Songs")
+		return m.loadWithSpinner(loadRandomSongsCmd(m.api))
+	case "starred":
+		m.pushNav("Starred")
+		return m.loadWithSpinner(loadStarredCmd(m.api))
+	case "genres":
+		m.pushNav("By Genre")
+		return m.loadWithSpinner(loadGenresCmd(m.api))
+	case "similar":
+		song := m.pl.CurrentSong()
+		if song == nil {
+			return m, m.showToast("No song currently playing", ToastError, toastLong)
+		}
+		m.pushNav("Similar")
+		return m.loadWithSpinner(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID))
+	case "top":
+		song := m.pl.CurrentSong()
+		if song == nil {
+			return m, m.showToast("No song currently playing", ToastError, toastLong)
+		}
+		m.pushNav("Top Songs")
+		return m.loadWithSpinner(loadTopSongsCmd(m.api, song.Artist))
+	}
+	return m, nil
+}
+
+func (m *Model) handleEnterGenres(idx int) (tea.Model, tea.Cmd) {
+	genres, _ := m.viewData.([]api.Genre)
+	if idx < 0 || idx >= len(genres) {
+		return m, nil
+	}
+	genre := genres[idx]
+	m.pushNav(genre.Name)
+	return m.loadWithSpinner(loadSongsByGenreCmd(m.api, genre.Name))
+}
+
+func (m *Model) handleEnterArtists(idx int) (tea.Model, tea.Cmd) {
+	artists := m.viewData.([]api.Artist)
+	if idx < 0 || idx >= len(artists) {
+		return m, nil
+	}
+	artist := artists[idx]
+	m.pushNav(artist.Name)
+	return m.loadWithSpinner(loadArtistCmd(m.api, artist.ID))
+}
+
+func (m *Model) handleEnterAlbums(idx int) (tea.Model, tea.Cmd) {
+	albums := m.viewData.([]api.Album)
+	if idx < 0 || idx >= len(albums) {
+		return m, nil
+	}
+	album := albums[idx]
+	m.pushNav(album.Name)
+	return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
+}
+
+func (m *Model) handleEnterPlaylists(idx int) (tea.Model, tea.Cmd) {
+	playlists := m.viewData.([]api.Playlist)
+	if idx < 0 || idx >= len(playlists) {
+		return m, nil
+	}
+	playlist := playlists[idx]
+	m.currentPlaylistID = playlist.ID
+	m.pushNav(playlist.Name)
+	return m.loadWithSpinner(loadPlaylistCmd(m.api, playlist.ID))
+}
+
+func (m *Model) handleEnterSongs(idx int) (tea.Model, tea.Cmd) {
+	songs := m.viewData.([]api.Song)
+	if idx < 0 || idx >= len(songs) {
+		return m, nil
+	}
+	if songs[idx].ID == "" {
+		return m, m.showToast("Not in library", ToastInfo, toastShort)
+	}
+	return m, m.playSong(songs[idx])
+}
+
+func (m *Model) handleEnterPodcasts(idx int) (tea.Model, tea.Cmd) {
+	podcasts := m.viewData.([]api.Podcast)
+	if idx < 0 || idx >= len(podcasts) {
+		return m, nil
+	}
+	podcast := podcasts[idx]
+	m.pushNav(podcast.Title)
+	return m.loadWithSpinner(loadPodcastCmd(m.api, podcast.ID))
+}
+
+func (m *Model) handleEnterEpisodes(idx int) (tea.Model, tea.Cmd) {
+	episodes := m.viewData.([]api.PodcastEpisode)
+	if idx < 0 || idx >= len(episodes) {
+		return m, nil
+	}
+	return m, m.playEpisode(episodes[idx])
+}
+
+func (m *Model) handleEnterSearchResults(idx int) (tea.Model, tea.Cmd) {
+	items := m.viewData.([]SearchResultItem)
+	if idx < 0 || idx >= len(items) {
+		return m, nil
+	}
+	item := items[idx]
+	switch item.Type {
+	case "artist":
+		m.pushNav(item.Artist.Name)
+		return m.loadWithSpinner(loadArtistCmd(m.api, item.Artist.ID))
+	case "album":
+		m.pushNav(item.Album.Name)
+		return m.loadWithSpinner(loadAlbumCmd(m.api, item.Album.ID))
+	case "song":
+		return m, m.playSongFromSearch(item.Song)
+	}
+	return m, nil
+}
+
+func (m *Model) handleEnterQueue(idx int) (tea.Model, tea.Cmd) {
+	songs := m.pl.Queue().Songs()
+	if idx < 0 || idx >= len(songs) {
+		return m, nil
+	}
+	m.pl.Queue().SetIndex(idx)
+	song := songs[idx]
+	streamURL := m.api.StreamURL(song.ID)
+	return m, func() tea.Msg {
+		if err := m.pl.Play(song, streamURL); err != nil {
+			return ShowToastMsg{Text: fmt.Sprintf("Play error: %v", err), Level: ToastError}
+		}
+		go m.api.Scrobble(song.ID) //nolint:errcheck
+		return ShowToastMsg{Text: fmt.Sprintf("Now playing: %s — %s", song.Title, song.Artist), Level: ToastSuccess}
+	}
 }
 
 func (m *Model) playSong(song api.Song) tea.Cmd {
@@ -1510,342 +1533,32 @@ func (m *Model) showToast(text string, level ToastLevel, dur time.Duration) tea.
 }
 
 func (m *Model) buildTable() {
-	contentW := m.width - 4
-	if contentW < 1 {
-		contentW = 1
-	}
-
 	var cols []table.Column
 	var rows []table.Row
 
 	switch m.viewType {
 	case ViewDiscover:
-		options, _ := m.viewData.([]DiscoverOption)
-		numCols := 2
-		padding := 2 * numCols
-		descW := 40
-		modeW := contentW - descW - padding
-		if modeW < 10 {
-			modeW = 10
-		}
-		cols = []table.Column{
-			{Title: "Mode", Width: modeW},
-			{Title: "Description", Width: descW},
-		}
-		rows = make([]table.Row, len(options))
-		for i, o := range options {
-			rows[i] = table.Row{o.Label, o.Description}
-		}
-
+		cols, rows = m.buildDiscoverTable()
 	case ViewGenres:
-		genres, _ := m.viewData.([]api.Genre)
-		numCols := 3
-		padding := 2 * numCols
-		songsW := 8
-		albumsW := 8
-		fixedW := songsW + albumsW
-		nameW := contentW - fixedW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Genre", Width: nameW},
-			{Title: "Songs", Width: songsW},
-			{Title: "Albums", Width: albumsW},
-		}
-		rows = make([]table.Row, len(genres))
-		for i, g := range genres {
-			rows[i] = table.Row{g.Name, fmt.Sprintf("%d", g.SongCount), fmt.Sprintf("%d", g.AlbumCount)}
-		}
-
+		cols, rows = m.buildGenresTable()
 	case ViewArtists:
-		artists, _ := m.viewData.([]api.Artist)
-		numCols := 2
-		padding := 2 * numCols
-		albumsColW := 8
-		nameW := contentW - albumsColW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Name", Width: nameW},
-			{Title: "Albums", Width: albumsColW},
-		}
-		rows = make([]table.Row, len(artists))
-		for i, a := range artists {
-			rows[i] = table.Row{a.Name, fmt.Sprintf("%d", a.AlbumCount)}
-		}
-
+		cols, rows = m.buildArtistsTable()
 	case ViewAlbums:
-		albums, _ := m.viewData.([]api.Album)
-		numCols := 4
-		padding := 2 * numCols
-		yearW := 4
-		tracksW := 8
-		fixedW := yearW + tracksW
-		remaining := contentW - fixedW - padding
-		if remaining < 20 {
-			remaining = 20
-		}
-		nameW := remaining * 50 / 100
-		artistW := remaining - nameW
-		cols = []table.Column{
-			{Title: "Name", Width: nameW},
-			{Title: "Artist", Width: artistW},
-			{Title: "Year", Width: yearW},
-			{Title: "Tracks", Width: tracksW},
-		}
-		rows = make([]table.Row, len(albums))
-		for i, a := range albums {
-			yearStr := ""
-			if a.Year > 0 {
-				yearStr = fmt.Sprintf("%d", a.Year)
-			}
-			rows[i] = table.Row{a.Name, a.Artist, yearStr, fmt.Sprintf("%d", a.SongCount)}
-		}
-
+		cols, rows = m.buildAlbumsTable()
 	case ViewPlaylists, ViewPlaylistPicker:
-		playlists, _ := m.viewData.([]api.Playlist)
-		numCols := 2
-		padding := 2 * numCols
-		tracksW := 8
-		nameW := contentW - tracksW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Name", Width: nameW},
-			{Title: "Tracks", Width: tracksW},
-		}
-		rows = make([]table.Row, len(playlists))
-		for i, p := range playlists {
-			rows[i] = table.Row{p.Name, fmt.Sprintf("%d", p.SongCount)}
-		}
-
+		cols, rows = m.buildPlaylistsTable()
 	case ViewSongs:
-		songs, _ := m.viewData.([]api.Song)
-		showAlbum := m.activeTab == TabPlaylists
-		dimStyle := lipgloss.NewStyle().Foreground(colorDimText)
-
-		if showAlbum {
-			numCols := 5
-			padding := 2 * numCols
-			trackW := 3
-			timeW := 6
-			fixedW := trackW + timeW
-			remaining := contentW - fixedW - padding
-			if remaining < 30 {
-				remaining = 30
-			}
-			titleW := remaining * 35 / 100
-			artistW := remaining * 30 / 100
-			albumW := remaining - titleW - artistW
-			cols = []table.Column{
-				{Title: "#", Width: trackW},
-				{Title: "Title", Width: titleW},
-				{Title: "Artist", Width: artistW},
-				{Title: "Album", Width: albumW},
-				{Title: "Time", Width: timeW},
-			}
-			rows = make([]table.Row, len(songs))
-			for i, s := range songs {
-				if s.ID == "" {
-					rows[i] = table.Row{
-						dimStyle.Render("✗"),
-						dimStyle.Render(s.Title),
-						dimStyle.Render(s.Artist),
-						dimStyle.Render(s.Album),
-						"",
-					}
-					continue
-				}
-				durStr := fmt.Sprintf("%d:%02d", s.Duration/60, s.Duration%60)
-				rows[i] = table.Row{
-					formatTrackNumber(s.Track, s.DiscNumber),
-					s.Title,
-					s.Artist,
-					s.Album,
-					durStr,
-				}
-			}
-		} else {
-			numCols := 5
-			padding := 2 * numCols
-			trackW := 5
-			timeW := 6
-			kbpsW := 5
-			fixedW := trackW + timeW + kbpsW
-			remaining := contentW - fixedW - padding
-			if remaining < 20 {
-				remaining = 20
-			}
-			titleW := remaining * 55 / 100
-			artistW := remaining - titleW
-			cols = []table.Column{
-				{Title: "#", Width: trackW},
-				{Title: "Title", Width: titleW},
-				{Title: "Artist", Width: artistW},
-				{Title: "Time", Width: timeW},
-				{Title: "Kbps", Width: kbpsW},
-			}
-			rows = make([]table.Row, len(songs))
-			for i, s := range songs {
-				trackStr := formatTrackNumber(s.Track, s.DiscNumber)
-				durStr := fmt.Sprintf("%d:%02d", s.Duration/60, s.Duration%60)
-				bitrateStr := ""
-				if s.BitRate > 0 {
-					bitrateStr = fmt.Sprintf("%d", s.BitRate)
-				}
-				if s.ID == "" {
-					rows[i] = table.Row{
-						dimStyle.Render("✗"),
-						dimStyle.Render(s.Title),
-						dimStyle.Render(s.Artist),
-						"",
-						"",
-					}
-					continue
-				}
-				rows[i] = table.Row{
-					trackStr,
-					s.Title,
-					s.Artist,
-					durStr,
-					bitrateStr,
-				}
-			}
-		}
-
+		cols, rows = m.buildSongsTable()
 	case ViewPodcasts:
-		podcasts, _ := m.viewData.([]api.Podcast)
-		numCols := 2
-		padding := 2 * numCols
-		epsW := 10
-		nameW := contentW - epsW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Podcast", Width: nameW},
-			{Title: "Episodes", Width: epsW},
-		}
-		rows = make([]table.Row, len(podcasts))
-		for i, p := range podcasts {
-			available := 0
-			for _, ep := range p.Episodes {
-				if ep.Status == "completed" {
-					available++
-				}
-			}
-			rows[i] = table.Row{p.Title, fmt.Sprintf("%d/%d", available, len(p.Episodes))}
-		}
-
+		cols, rows = m.buildPodcastsTable()
 	case ViewEpisodes:
-		episodes, _ := m.viewData.([]api.PodcastEpisode)
-		numCols := 3
-		padding := 2 * numCols
-		durW := 8
-		statusW := 10
-		fixedW := durW + statusW
-		nameW := contentW - fixedW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Episode", Width: nameW},
-			{Title: "Duration", Width: durW},
-			{Title: "Status", Width: statusW},
-		}
-		rows = make([]table.Row, len(episodes))
-		for i, e := range episodes {
-			durStr := ""
-			if e.Duration > 0 {
-				durStr = formatDurationCompact(e.Duration)
-			}
-			rows[i] = table.Row{e.Title, durStr, e.Status}
-		}
-
+		cols, rows = m.buildEpisodesTable()
 	case ViewSearchResults:
-		items, _ := m.viewData.([]SearchResultItem)
-		numCols := 3
-		padding := 2 * numCols
-		typeW := 8
-		detailW := 20
-		fixedW := typeW + detailW
-		nameW := contentW - fixedW - padding
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Type", Width: typeW},
-			{Title: "Name", Width: nameW},
-			{Title: "Detail", Width: detailW},
-		}
-		rows = make([]table.Row, len(items))
-		for i, item := range items {
-			switch item.Type {
-			case "artist":
-				rows[i] = table.Row{"Artist", item.Artist.Name, fmt.Sprintf("%d albums", item.Artist.AlbumCount)}
-			case "album":
-				rows[i] = table.Row{"Album", item.Album.Name, item.Album.Artist}
-			case "song":
-				durStr := fmt.Sprintf("%d:%02d", item.Song.Duration/60, item.Song.Duration%60)
-				rows[i] = table.Row{"Track", item.Song.Title, item.Song.Artist + "  " + durStr}
-			}
-		}
-
+		cols, rows = m.buildSearchResultsTable()
 	case ViewQueue:
-		songs := m.pl.Queue().Songs()
-		queueIdx := m.pl.Queue().Index()
-		numCols := 5
-		padding := 2 * numCols
-		markerW := 2
-		trackW := 5
-		timeW := 6
-		fixedW := markerW + trackW + timeW
-		remaining := contentW - fixedW - padding
-		if remaining < 20 {
-			remaining = 20
-		}
-		titleW := remaining * 55 / 100
-		artistW := remaining - titleW
-		cols = []table.Column{
-			{Title: "", Width: markerW},
-			{Title: "#", Width: trackW},
-			{Title: "Title", Width: titleW},
-			{Title: "Artist", Width: artistW},
-			{Title: "Time", Width: timeW},
-		}
-		rows = make([]table.Row, len(songs))
-		for i, s := range songs {
-			marker := " "
-			if i == queueIdx {
-				marker = "▶"
-			}
-			durStr := fmt.Sprintf("%d:%02d", s.Duration/60, s.Duration%60)
-			rows[i] = table.Row{
-				marker,
-				fmt.Sprintf("%d", i+1),
-				s.Title,
-				s.Artist,
-				durStr,
-			}
-		}
-
+		cols, rows = m.buildQueueTable()
 	case ViewSonosPicker:
-		devices, _ := m.viewData.([]sonos.Device)
-		nameW := contentW - 4
-		if nameW < 10 {
-			nameW = 10
-		}
-		cols = []table.Column{
-			{Title: "Sonos Speaker", Width: nameW},
-		}
-		rows = make([]table.Row, len(devices))
-		for i, d := range devices {
-			rows[i] = table.Row{d.Name}
-		}
-
+		cols, rows = m.buildSonosPickerTable()
 	}
 
 	// Clear rows first so UpdateViewport (triggered by SetColumns) doesn't
@@ -1853,6 +1566,400 @@ func (m *Model) buildTable() {
 	m.table.SetRows(nil)
 	m.table.SetColumns(cols)
 	m.table.SetRows(rows)
+}
+
+func (m *Model) buildDiscoverTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	options, _ := m.viewData.([]DiscoverOption)
+	numCols := 2
+	padding := 2 * numCols
+	descW := 40
+	modeW := contentW - descW - padding
+	if modeW < 10 {
+		modeW = 10
+	}
+	cols := []table.Column{
+		{Title: "Mode", Width: modeW},
+		{Title: "Description", Width: descW},
+	}
+	rows := make([]table.Row, len(options))
+	for i, option := range options {
+		rows[i] = table.Row{option.Label, option.Description}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildGenresTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	genres, _ := m.viewData.([]api.Genre)
+	numCols := 3
+	padding := 2 * numCols
+	songsW := 8
+	albumsW := 8
+	fixedW := songsW + albumsW
+	nameW := contentW - fixedW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Genre", Width: nameW},
+		{Title: "Songs", Width: songsW},
+		{Title: "Albums", Width: albumsW},
+	}
+	rows := make([]table.Row, len(genres))
+	for i, genre := range genres {
+		rows[i] = table.Row{genre.Name, fmt.Sprintf("%d", genre.SongCount), fmt.Sprintf("%d", genre.AlbumCount)}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildArtistsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	artists, _ := m.viewData.([]api.Artist)
+	numCols := 2
+	padding := 2 * numCols
+	albumsColW := 8
+	nameW := contentW - albumsColW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Name", Width: nameW},
+		{Title: "Albums", Width: albumsColW},
+	}
+	rows := make([]table.Row, len(artists))
+	for i, artist := range artists {
+		rows[i] = table.Row{artist.Name, fmt.Sprintf("%d", artist.AlbumCount)}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildAlbumsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	albums, _ := m.viewData.([]api.Album)
+	numCols := 4
+	padding := 2 * numCols
+	yearW := 4
+	tracksW := 8
+	fixedW := yearW + tracksW
+	remaining := contentW - fixedW - padding
+	if remaining < 20 {
+		remaining = 20
+	}
+	nameW := remaining * 50 / 100
+	artistW := remaining - nameW
+	cols := []table.Column{
+		{Title: "Name", Width: nameW},
+		{Title: "Artist", Width: artistW},
+		{Title: "Year", Width: yearW},
+		{Title: "Tracks", Width: tracksW},
+	}
+	rows := make([]table.Row, len(albums))
+	for i, album := range albums {
+		yearStr := ""
+		if album.Year > 0 {
+			yearStr = fmt.Sprintf("%d", album.Year)
+		}
+		rows[i] = table.Row{album.Name, album.Artist, yearStr, fmt.Sprintf("%d", album.SongCount)}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildPlaylistsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	playlists, _ := m.viewData.([]api.Playlist)
+	numCols := 2
+	padding := 2 * numCols
+	tracksW := 8
+	nameW := contentW - tracksW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Name", Width: nameW},
+		{Title: "Tracks", Width: tracksW},
+	}
+	rows := make([]table.Row, len(playlists))
+	for i, playlist := range playlists {
+		rows[i] = table.Row{playlist.Name, fmt.Sprintf("%d", playlist.SongCount)}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	songs, _ := m.viewData.([]api.Song)
+	showAlbum := m.activeTab == TabPlaylists
+	dimStyle := lipgloss.NewStyle().Foreground(colorDimText)
+
+	if showAlbum {
+		numCols := 5
+		padding := 2 * numCols
+		trackW := 3
+		timeW := 6
+		fixedW := trackW + timeW
+		remaining := contentW - fixedW - padding
+		if remaining < 30 {
+			remaining = 30
+		}
+		titleW := remaining * 35 / 100
+		artistW := remaining * 30 / 100
+		albumW := remaining - titleW - artistW
+		cols := []table.Column{
+			{Title: "#", Width: trackW},
+			{Title: "Title", Width: titleW},
+			{Title: "Artist", Width: artistW},
+			{Title: "Album", Width: albumW},
+			{Title: "Time", Width: timeW},
+		}
+		rows := make([]table.Row, len(songs))
+		for i, song := range songs {
+			if song.ID == "" {
+				rows[i] = table.Row{
+					dimStyle.Render("✗"),
+					dimStyle.Render(song.Title),
+					dimStyle.Render(song.Artist),
+					dimStyle.Render(song.Album),
+					"",
+				}
+				continue
+			}
+			durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
+			rows[i] = table.Row{
+				formatTrackNumber(song.Track, song.DiscNumber),
+				song.Title,
+				song.Artist,
+				song.Album,
+				durStr,
+			}
+		}
+		return cols, rows
+	}
+
+	numCols := 5
+	padding := 2 * numCols
+	trackW := 5
+	timeW := 6
+	kbpsW := 5
+	fixedW := trackW + timeW + kbpsW
+	remaining := contentW - fixedW - padding
+	if remaining < 20 {
+		remaining = 20
+	}
+	titleW := remaining * 55 / 100
+	artistW := remaining - titleW
+	cols := []table.Column{
+		{Title: "#", Width: trackW},
+		{Title: "Title", Width: titleW},
+		{Title: "Artist", Width: artistW},
+		{Title: "Time", Width: timeW},
+		{Title: "Kbps", Width: kbpsW},
+	}
+	rows := make([]table.Row, len(songs))
+	for i, song := range songs {
+		trackStr := formatTrackNumber(song.Track, song.DiscNumber)
+		durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
+		bitrateStr := ""
+		if song.BitRate > 0 {
+			bitrateStr = fmt.Sprintf("%d", song.BitRate)
+		}
+		if song.ID == "" {
+			rows[i] = table.Row{
+				dimStyle.Render("✗"),
+				dimStyle.Render(song.Title),
+				dimStyle.Render(song.Artist),
+				"",
+				"",
+			}
+			continue
+		}
+		rows[i] = table.Row{
+			trackStr,
+			song.Title,
+			song.Artist,
+			durStr,
+			bitrateStr,
+		}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildPodcastsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	podcasts, _ := m.viewData.([]api.Podcast)
+	numCols := 2
+	padding := 2 * numCols
+	epsW := 10
+	nameW := contentW - epsW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Podcast", Width: nameW},
+		{Title: "Episodes", Width: epsW},
+	}
+	rows := make([]table.Row, len(podcasts))
+	for i, podcast := range podcasts {
+		available := 0
+		for _, ep := range podcast.Episodes {
+			if ep.Status == "completed" {
+				available++
+			}
+		}
+		rows[i] = table.Row{podcast.Title, fmt.Sprintf("%d/%d", available, len(podcast.Episodes))}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildEpisodesTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	episodes, _ := m.viewData.([]api.PodcastEpisode)
+	numCols := 3
+	padding := 2 * numCols
+	durW := 8
+	statusW := 10
+	fixedW := durW + statusW
+	nameW := contentW - fixedW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Episode", Width: nameW},
+		{Title: "Duration", Width: durW},
+		{Title: "Status", Width: statusW},
+	}
+	rows := make([]table.Row, len(episodes))
+	for i, episode := range episodes {
+		durStr := ""
+		if episode.Duration > 0 {
+			durStr = formatDurationCompact(episode.Duration)
+		}
+		rows[i] = table.Row{episode.Title, durStr, episode.Status}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildSearchResultsTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	items, _ := m.viewData.([]SearchResultItem)
+	numCols := 3
+	padding := 2 * numCols
+	typeW := 8
+	detailW := 20
+	fixedW := typeW + detailW
+	nameW := contentW - fixedW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Type", Width: typeW},
+		{Title: "Name", Width: nameW},
+		{Title: "Detail", Width: detailW},
+	}
+	rows := make([]table.Row, len(items))
+	for i, item := range items {
+		switch item.Type {
+		case "artist":
+			rows[i] = table.Row{"Artist", item.Artist.Name, fmt.Sprintf("%d albums", item.Artist.AlbumCount)}
+		case "album":
+			rows[i] = table.Row{"Album", item.Album.Name, item.Album.Artist}
+		case "song":
+			durStr := fmt.Sprintf("%d:%02d", item.Song.Duration/60, item.Song.Duration%60)
+			rows[i] = table.Row{"Track", item.Song.Title, item.Song.Artist + "  " + durStr}
+		}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildQueueTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	songs := m.pl.Queue().Songs()
+	queueIdx := m.pl.Queue().Index()
+	numCols := 5
+	padding := 2 * numCols
+	markerW := 2
+	trackW := 5
+	timeW := 6
+	fixedW := markerW + trackW + timeW
+	remaining := contentW - fixedW - padding
+	if remaining < 20 {
+		remaining = 20
+	}
+	titleW := remaining * 55 / 100
+	artistW := remaining - titleW
+	cols := []table.Column{
+		{Title: "", Width: markerW},
+		{Title: "#", Width: trackW},
+		{Title: "Title", Width: titleW},
+		{Title: "Artist", Width: artistW},
+		{Title: "Time", Width: timeW},
+	}
+	rows := make([]table.Row, len(songs))
+	for i, song := range songs {
+		marker := " "
+		if i == queueIdx {
+			marker = "▶"
+		}
+		durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
+		rows[i] = table.Row{
+			marker,
+			fmt.Sprintf("%d", i+1),
+			song.Title,
+			song.Artist,
+			durStr,
+		}
+	}
+	return cols, rows
+}
+
+func (m *Model) buildSonosPickerTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	devices, _ := m.viewData.([]sonos.Device)
+	nameW := contentW - 4
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Sonos Speaker", Width: nameW},
+	}
+	rows := make([]table.Row, len(devices))
+	for i, device := range devices {
+		rows[i] = table.Row{device.Name}
+	}
+	return cols, rows
 }
 
 func (m *Model) relayout() {
@@ -2173,56 +2280,48 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 		switch opt.Action {
 		case "random":
 			m.pushNav("Random Songs")
-			m.loading = true
-			return m, tea.Batch(loadRandomSongsCmd(m.api), m.spinner.Tick)
+			return m.loadWithSpinner(loadRandomSongsCmd(m.api))
 		case "starred":
 			m.pushNav("Starred")
-			m.loading = true
-			return m, tea.Batch(loadStarredCmd(m.api), m.spinner.Tick)
+			return m.loadWithSpinner(loadStarredCmd(m.api))
 		case "genres":
 			m.pushNav("By Genre")
-			m.loading = true
-			return m, tea.Batch(loadGenresCmd(m.api), m.spinner.Tick)
+			return m.loadWithSpinner(loadGenresCmd(m.api))
 		case "similar":
 			song := m.pl.CurrentSong()
 			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, 3*time.Second)
+				return m, m.showToast("No song currently playing", ToastError, toastLong)
 			}
 			m.pushNav("Similar")
-			m.loading = true
-			return m, tea.Batch(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID), m.spinner.Tick)
+			return m.loadWithSpinner(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID))
 		case "top":
 			song := m.pl.CurrentSong()
 			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, 3*time.Second)
+				return m, m.showToast("No song currently playing", ToastError, toastLong)
 			}
 			m.pushNav("Top Songs")
-			m.loading = true
-			return m, tea.Batch(loadTopSongsCmd(m.api, song.Artist), m.spinner.Tick)
+			return m.loadWithSpinner(loadTopSongsCmd(m.api, song.Artist))
 		}
 
 	case secRecent:
 		if m.discoverItem < len(m.discoverRecent) {
-			a := m.discoverRecent[m.discoverItem]
-			m.pushNav(a.Name)
-			m.loading = true
-			return m, tea.Batch(loadAlbumCmd(m.api, a.ID), m.spinner.Tick)
+			album := m.discoverRecent[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
 		}
 
 	case secNewest:
 		if m.discoverItem < len(m.discoverNewest) {
-			a := m.discoverNewest[m.discoverItem]
-			m.pushNav(a.Name)
-			m.loading = true
-			return m, tea.Batch(loadAlbumCmd(m.api, a.ID), m.spinner.Tick)
+			album := m.discoverNewest[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
 		}
 
 	case secFrequent:
 		if m.discoverItem < len(m.discoverFrequent) {
-			a := m.discoverFrequent[m.discoverItem]
-			m.pushNav(a.Name)
-			m.loading = true
-			return m, tea.Batch(loadAlbumCmd(m.api, a.ID), m.spinner.Tick)
+			album := m.discoverFrequent[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
 		}
 
 	case secLBTrending, secLBPopular, secLBDailyJams, secLBWeekly, secLBRecommended:
@@ -2244,7 +2343,7 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 		}
 		dt := tracks[m.discoverItem]
 		if !dt.Available {
-			return m, m.showToast("Not in library", ToastInfo, 2*time.Second)
+			return m, m.showToast("Not in library", ToastInfo, toastShort)
 		}
 		// Queue all available tracks from section and play selected
 		var songs []api.Song
@@ -2277,11 +2376,10 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 		}
 		dr := m.lbFreshReleases[m.discoverItem]
 		if !dr.Available {
-			return m, m.showToast("Not in library", ToastInfo, 2*time.Second)
+			return m, m.showToast("Not in library", ToastInfo, toastShort)
 		}
 		m.pushNav(dr.Album.Name)
-		m.loading = true
-		return m, tea.Batch(loadAlbumCmd(m.api, dr.Album.ID), m.spinner.Tick)
+		return m.loadWithSpinner(loadAlbumCmd(m.api, dr.Album.ID))
 	}
 
 	return m, nil
@@ -2290,13 +2388,13 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 func (m *Model) handlePlayNext() (tea.Model, tea.Cmd) {
 	song := m.getTargetSong()
 	if song == nil {
-		return m, m.showToast("No song selected", ToastError, 2*time.Second)
+		return m, m.showToast("No song selected", ToastError, toastShort)
 	}
 	if len(m.pl.Queue().Songs()) == 0 {
-		return m, m.showToast("Queue is empty — play something first", ToastInfo, 2*time.Second)
+		return m, m.showToast("Queue is empty — play something first", ToastInfo, toastShort)
 	}
 	m.pl.Queue().InsertNext(*song)
-	return m, m.showToast(fmt.Sprintf("Playing next: %s", song.Title), ToastSuccess, 2*time.Second)
+	return m, m.showToast(fmt.Sprintf("Playing next: %s", song.Title), ToastSuccess, toastShort)
 }
 
 // --- Star handling ---
@@ -2304,7 +2402,7 @@ func (m *Model) handlePlayNext() (tea.Model, tea.Cmd) {
 func (m *Model) handleStar() (tea.Model, tea.Cmd) {
 	song := m.getTargetSong()
 	if song == nil {
-		return m, m.showToast("No song to star", ToastError, 2*time.Second)
+		return m, m.showToast("No song to star", ToastError, toastShort)
 	}
 	return m, starToggleCmd(m.api, song.ID, song.Starred != "")
 }
@@ -2365,16 +2463,14 @@ func (m *Model) handleShufflePlay() (tea.Model, tea.Cmd) {
 		if idx < 0 || idx >= len(artists) {
 			return m, nil
 		}
-		m.loading = true
-		return m, tea.Batch(loadArtistAllSongsCmd(m.api, artists[idx].ID), m.spinner.Tick)
+		return m.loadWithSpinner(loadArtistAllSongsCmd(m.api, artists[idx].ID))
 
 	case ViewAlbums:
 		albums, _ := m.viewData.([]api.Album)
 		if len(albums) == 0 {
 			return m, nil
 		}
-		m.loading = true
-		return m, tea.Batch(loadAlbumsAllSongsCmd(m.api, albums), m.spinner.Tick)
+		return m.loadWithSpinner(loadAlbumsAllSongsCmd(m.api, albums))
 
 	case ViewPlaylists:
 		playlists, _ := m.viewData.([]api.Playlist)
@@ -2382,8 +2478,7 @@ func (m *Model) handleShufflePlay() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		pl := playlists[idx]
-		m.loading = true
-		return m, tea.Batch(loadPlaylistShuffleCmd(m.api, pl.ID), m.spinner.Tick)
+		return m.loadWithSpinner(loadPlaylistShuffleCmd(m.api, pl.ID))
 
 	case ViewSongs:
 		songs, _ := m.viewData.([]api.Song)
@@ -2410,7 +2505,7 @@ func (m *Model) handleShufflePlay() (tea.Model, tea.Cmd) {
 func (m *Model) handleOpenQueue() (tea.Model, tea.Cmd) {
 	songs := m.pl.Queue().Songs()
 	if len(songs) == 0 {
-		return m, m.showToast("Queue is empty", ToastInfo, 2*time.Second)
+		return m, m.showToast("Queue is empty", ToastInfo, toastShort)
 	}
 	m.prevView = m.viewType
 	m.prevViewData = m.viewData
@@ -2449,7 +2544,7 @@ func (m *Model) handleQueueRemove() (tea.Model, tea.Cmd) {
 	if idx >= len(m.pl.Queue().Songs()) {
 		m.table.SetCursor(len(m.pl.Queue().Songs()) - 1)
 	}
-	return m, m.showToast("Removed from queue", ToastInfo, 2*time.Second)
+	return m, m.showToast("Removed from queue", ToastInfo, toastShort)
 }
 
 func (m *Model) handleQueueMoveDown() (tea.Model, tea.Cmd) {
@@ -2489,8 +2584,7 @@ func (m *Model) updateCreatePlaylist(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.viewType == ViewPlaylistPicker {
 			m.closeOverlaySilent()
 		}
-		m.loading = true
-		return m, tea.Batch(createPlaylistCmd(m.api, name), m.spinner.Tick)
+		return m.loadWithSpinner(createPlaylistCmd(m.api, name))
 	case "esc":
 		m.creatingNew = false
 		m.pickerInput.Blur()
@@ -2531,7 +2625,7 @@ func (m *Model) updatePlaylistPicker(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleAddToPlaylist() (tea.Model, tea.Cmd) {
 	song := m.getTargetSong()
 	if song == nil || song.ID == "" {
-		return m, m.showToast("No song to add", ToastError, 2*time.Second)
+		return m, m.showToast("No song to add", ToastError, toastShort)
 	}
 	m.pendingSongIDs = []string{song.ID}
 	return m.openPlaylistPicker()
@@ -2563,7 +2657,7 @@ func (m *Model) handleDeletePlaylist() (tea.Model, tea.Cmd) {
 	}
 	p := playlists[idx]
 	m.deleteConfirmID = p.ID
-	return m, m.showToast(fmt.Sprintf("Press d again to delete '%s'", p.Name), ToastInfo, 3*time.Second)
+	return m, m.showToast(fmt.Sprintf("Press d again to delete '%s'", p.Name), ToastInfo, toastShort)
 }
 
 func (m *Model) handleRemoveFromPlaylist() (tea.Model, tea.Cmd) {
@@ -2581,7 +2675,7 @@ func (m *Model) handleRemoveFromPlaylist() (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(
 		removeFromPlaylistCmd(m.api, playlistID, []int{idx}),
-		m.showToast("Removed from playlist", ToastSuccess, 2*time.Second),
+		m.showToast("Removed from playlist", ToastSuccess, toastShort),
 	)
 }
 
@@ -2787,7 +2881,7 @@ func (m *Model) handleSonosToggle() (tea.Model, tea.Cmd) {
 	}
 	return m, tea.Batch(
 		discoverSonosCmd(),
-		m.showToast("Discovering Sonos speakers...", ToastInfo, 4*time.Second),
+		m.showToast("Discovering Sonos speakers...", ToastInfo, toastShort),
 	)
 }
 
@@ -2829,7 +2923,7 @@ func (m *Model) connectSonos(dev sonos.Device) (tea.Model, tea.Cmd) {
 			return ShowToastMsg{Text: fmt.Sprintf("Connected to %s", dev.Name), Level: ToastSuccess}
 		}
 	}
-	return m, m.showToast(fmt.Sprintf("Connected to %s", dev.Name), ToastSuccess, 3*time.Second)
+	return m, m.showToast(fmt.Sprintf("Connected to %s", dev.Name), ToastSuccess, toastShort)
 }
 
 // disconnectSonos disables Sonos output and resumes the current song on local
@@ -2838,7 +2932,7 @@ func (m *Model) disconnectSonos() (tea.Model, tea.Cmd) {
 	song := m.pl.CurrentSong()
 	if song == nil || song.ID == "" {
 		m.pl.DisableSonos()
-		return m, m.showToast("Switched to local audio", ToastInfo, 2*time.Second)
+		return m, m.showToast("Switched to local audio", ToastInfo, toastShort)
 	}
 	s := *song
 	streamURL := m.api.StreamURL(s.ID)

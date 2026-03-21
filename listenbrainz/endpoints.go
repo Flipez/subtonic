@@ -101,6 +101,38 @@ func (c *Client) GetPopularByArtist(artistName, recordingName string) ([]Recordi
 	return recordings, nil
 }
 
+func extractMBID(identifier string) string {
+	if idx := strings.LastIndex(identifier, "/"); idx >= 0 {
+		return identifier[idx+1:]
+	}
+	return ""
+}
+
+func parseJSPFTrack(t jspfTrack) Recording {
+	rec := Recording{
+		TrackName:  t.Title,
+		ArtistName: t.Creator,
+		AlbumName:  t.Album,
+	}
+	if len(t.Identifier) > 0 {
+		rec.MBID = extractMBID(t.Identifier[0])
+	}
+	return rec
+}
+
+func parseJSPFPlaylist(p jspfPlaylist) Playlist {
+	pl := Playlist{
+		Title:     p.Title,
+		Creator:   p.Creator,
+		MBID:      extractMBID(p.Identifier),
+		Algorithm: p.Extension.MusicBrainz.AdditionalMetadata.AlgorithmMetadata.SourcePatch,
+	}
+	for _, t := range p.Track {
+		pl.Tracks = append(pl.Tracks, parseJSPFTrack(t))
+	}
+	return pl
+}
+
 func (c *Client) GetUserPlaylists(username string) ([]Playlist, error) {
 	data, err := c.get(fmt.Sprintf("/1/user/%s/playlists", url.PathEscape(username)), url.Values{})
 	if err != nil {
@@ -114,28 +146,7 @@ func (c *Client) GetUserPlaylists(username string) ([]Playlist, error) {
 
 	var playlists []Playlist
 	for _, p := range resp.Playlists {
-		pl := Playlist{
-			Title:   p.Playlist.Title,
-			Creator: p.Playlist.Creator,
-		}
-		if idx := strings.LastIndex(p.Playlist.Identifier, "/"); idx >= 0 {
-			pl.MBID = p.Playlist.Identifier[idx+1:]
-		}
-		pl.Algorithm = p.Playlist.Extension.MusicBrainz.AdditionalMetadata.AlgorithmMetadata.SourcePatch
-		for _, t := range p.Playlist.Track {
-			rec := Recording{
-				TrackName:  t.Title,
-				ArtistName: t.Creator,
-				AlbumName:  t.Album,
-			}
-			if len(t.Identifier) > 0 {
-				if idx := strings.LastIndex(t.Identifier[0], "/"); idx >= 0 {
-					rec.MBID = t.Identifier[0][idx+1:]
-				}
-			}
-			pl.Tracks = append(pl.Tracks, rec)
-		}
-		playlists = append(playlists, pl)
+		playlists = append(playlists, parseJSPFPlaylist(p.Playlist))
 	}
 	return playlists, nil
 }
@@ -153,30 +164,7 @@ func (c *Client) GetPlaylistsCreatedFor(username string) ([]Playlist, error) {
 
 	var playlists []Playlist
 	for _, p := range resp.Playlists {
-		pl := Playlist{
-			Title:     p.Playlist.Title,
-			Creator:   p.Playlist.Creator,
-			Algorithm: p.Playlist.Extension.MusicBrainz.AdditionalMetadata.AlgorithmMetadata.SourcePatch,
-		}
-		// Extract MBID from identifier (e.g. "https://listenbrainz.org/playlist/{mbid}")
-		if idx := strings.LastIndex(p.Playlist.Identifier, "/"); idx >= 0 {
-			pl.MBID = p.Playlist.Identifier[idx+1:]
-		}
-		// Tracks are typically empty in the createdfor listing
-		for _, t := range p.Playlist.Track {
-			rec := Recording{
-				TrackName:  t.Title,
-				ArtistName: t.Creator,
-				AlbumName:  t.Album,
-			}
-			if len(t.Identifier) > 0 {
-				if idx := strings.LastIndex(t.Identifier[0], "/"); idx >= 0 {
-					rec.MBID = t.Identifier[0][idx+1:]
-				}
-			}
-			pl.Tracks = append(pl.Tracks, rec)
-		}
-		playlists = append(playlists, pl)
+		playlists = append(playlists, parseJSPFPlaylist(p.Playlist))
 	}
 	return playlists, nil
 }
@@ -192,28 +180,8 @@ func (c *Client) GetPlaylist(playlistMBID string) (*Playlist, error) {
 		return nil, err
 	}
 
-	pl := &Playlist{
-		Title:     resp.Playlist.Title,
-		Creator:   resp.Playlist.Creator,
-		Algorithm: resp.Playlist.Extension.MusicBrainz.AdditionalMetadata.AlgorithmMetadata.SourcePatch,
-	}
-	if idx := strings.LastIndex(resp.Playlist.Identifier, "/"); idx >= 0 {
-		pl.MBID = resp.Playlist.Identifier[idx+1:]
-	}
-	for _, t := range resp.Playlist.Track {
-		rec := Recording{
-			TrackName:  t.Title,
-			ArtistName: t.Creator,
-			AlbumName:  t.Album,
-		}
-		if len(t.Identifier) > 0 {
-			if idx := strings.LastIndex(t.Identifier[0], "/"); idx >= 0 {
-				rec.MBID = t.Identifier[0][idx+1:]
-			}
-		}
-		pl.Tracks = append(pl.Tracks, rec)
-	}
-	return pl, nil
+	pl := parseJSPFPlaylist(resp.Playlist)
+	return &pl, nil
 }
 
 func (c *Client) GetRecommendations(username string, count int) ([]Recording, error) {
