@@ -27,6 +27,9 @@ type PlayerBar struct {
 	repeat    player.RepeatMode
 	isSonos   bool
 	sonosName string
+
+	gradient  []color.Color // cached Blend1D result; recomputed only on width change
+	gradientW int
 }
 
 func NewPlayerBar(w int) PlayerBar {
@@ -71,29 +74,31 @@ func (p *PlayerBar) View() string {
 	}
 	prefix := PlayerIconStyle.Render(icon) + "  " + queueStr
 
-	// right side: time + vol + indicators
-	timeStr := PlayerTimeStyle.Render(fmt.Sprintf("%s / %s", formatDuration(p.pos), formatDuration(p.total)))
-	volStr := renderVolume(p.volume)
-
 	activeIndicator := lipgloss.NewStyle().Foreground(colorPlaying).Bold(true)
-	var indicators []string
+
+	// Fixed-width shuffle/repeat — always 1 cell so the layout never shifts.
+	shuffleStr := PlayerMetaStyle.Render(" ")
+	if p.shuffle {
+		shuffleStr = activeIndicator.Render(IconShuffle)
+	}
+	repeatStr := PlayerMetaStyle.Render(" ")
+	switch p.repeat {
+	case player.RepeatAll:
+		repeatStr = activeIndicator.Render(IconRepeatAll)
+	case player.RepeatOne:
+		repeatStr = activeIndicator.Render(IconRepeatOne)
+	}
+
+	volStr := renderVolume(p.volume)
+	var rightParts []string
 	if p.isSonos {
 		name := p.sonosName
 		if name == "" {
 			name = "Sonos"
 		}
-		indicators = append(indicators, activeIndicator.Render(fmt.Sprintf("%s %s", IconCast, name)))
+		rightParts = append(rightParts, activeIndicator.Render(fmt.Sprintf("%s %s", IconCast, name)))
 	}
-	if p.shuffle {
-		indicators = append(indicators, activeIndicator.Render(IconShuffle))
-	}
-	switch p.repeat {
-	case player.RepeatAll:
-		indicators = append(indicators, activeIndicator.Render(IconRepeatAll))
-	case player.RepeatOne:
-		indicators = append(indicators, activeIndicator.Render(IconRepeatOne))
-	}
-	rightParts := append(indicators, timeStr, volStr)
+	rightParts = append(rightParts, shuffleStr, repeatStr, volStr)
 	rightSide := strings.Join(rightParts, "  ")
 
 	prefixW := lipgloss.Width(prefix)
@@ -103,13 +108,20 @@ func (p *PlayerBar) View() string {
 		barRegionW = 10
 	}
 
+	// Recompute gradient only when bar width changes.
+	if p.gradientW != barRegionW {
+		p.gradient = lipgloss.Blend1D(barRegionW, colorFocused, colorHighlight)
+		p.gradientW = barRegionW
+	}
+
 	var line string
 	if p.song != nil {
 		pct := 0.0
 		if p.total > 0 {
 			pct = float64(p.pos) / float64(p.total)
 		}
-		barRegion := renderTrackProgressBar(p.song.Title, p.song.Artist, pct, barRegionW)
+		timeStr := fmt.Sprintf("%s / %s", formatDuration(p.pos), formatDuration(p.total))
+		barRegion := renderTrackProgressBar(p.song.Title, p.song.Artist, timeStr, pct, barRegionW, p.gradient)
 		line = prefix + barRegion + "  " + rightSide
 	} else {
 		noTrack := SubtextStyle.Render("No track playing")
@@ -133,16 +145,26 @@ func (p *PlayerBar) View() string {
 	return PlayerBarStyle.Width(p.width).BorderForeground(borderColor).Render(line)
 }
 
-// renderTrackProgressBar renders a bar of `width` chars with the track text overlaid on top.
-// The filled portion has a gradient from colorFocused (left) to colorHighlight (right).
-func renderTrackProgressBar(title, artist string, pct float64, width int) string {
+// renderTrackProgressBar renders a bar of `width` chars with track text left-aligned
+// and timeStr right-aligned, both overlaid on the gradient fill.
+func renderTrackProgressBar(title, artist, timeStr string, pct float64, width int, gradient []color.Color) string {
+	timeRunes := []rune(timeStr)
+	timeLen := len(timeRunes)
+	rightStart := width - timeLen - 1
+
+	// Track text fits left of the time with a 1-char gap.
+	maxTrackW := rightStart - 1
+	if maxTrackW < 0 {
+		maxTrackW = 0
+	}
 	full := title
 	if artist != "" {
 		full += " · " + artist
 	}
-	text := truncateStr(" "+full, width)
-	runes := []rune(text)
-	textLen := len(runes)
+	text := truncateStr(" "+full, maxTrackW)
+	textRunes := []rune(text)
+	textLen := len(textRunes)
+
 	fillEnd := int(pct * float64(width))
 	if fillEnd > width {
 		fillEnd = width
@@ -154,22 +176,26 @@ func renderTrackProgressBar(title, artist string, pct float64, width int) string
 	var b strings.Builder
 	for i := 0; i < width; i++ {
 		var ch string
-		if i < textLen {
-			ch = string(runes[i])
+		isText := false
+		if i >= rightStart && (i-rightStart) < timeLen {
+			ch = string(timeRunes[i-rightStart])
+			isText = true
+		} else if i < textLen {
+			ch = string(textRunes[i])
+			isText = true
 		} else {
 			ch = " "
 		}
+
 		if i < fillEnd {
-			// gradient: colorFocused → colorHighlight across full bar width
-			t := float64(i) / float64(max(width-1, 1))
-			bg := lerpColor(colorFocused, colorHighlight, t)
-			if i < textLen {
+			bg := gradient[i]
+			if isText {
 				b.WriteString(lipgloss.NewStyle().Background(bg).Foreground(colorUnfocused).Render(ch))
 			} else {
 				b.WriteString(lipgloss.NewStyle().Background(bg).Render(ch))
 			}
 		} else {
-			if i < textLen {
+			if isText {
 				b.WriteString(emptyTextStyle.Render(ch))
 			} else {
 				b.WriteString(emptyBarStyle.Render(ch))
@@ -177,16 +203,6 @@ func renderTrackProgressBar(title, artist string, pct float64, width int) string
 		}
 	}
 	return b.String()
-}
-
-// lerpColor linearly interpolates between two colors, t in [0,1].
-func lerpColor(c1, c2 color.Color, t float64) color.Color {
-	r1, g1, b1, _ := c1.RGBA()
-	r2, g2, b2, _ := c2.RGBA()
-	r := uint8((float64(r1) + t*(float64(r2)-float64(r1))) / 257.0)
-	g := uint8((float64(g1) + t*(float64(g2)-float64(g1))) / 257.0)
-	b := uint8((float64(b1) + t*(float64(b2)-float64(b1))) / 257.0)
-	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", r, g, b))
 }
 
 // renderVolume produces a mini volume bar like "vol ████░ 80%"
@@ -205,7 +221,7 @@ func renderVolume(vol int) string {
 	emptyStyle := lipgloss.NewStyle().Foreground(colorUnfocused)
 
 	bar := filledStyle.Render(strings.Repeat("█", filled)) + emptyStyle.Render(strings.Repeat("░", empty))
-	return PlayerMetaStyle.Render(IconVolume+" ") + bar + PlayerMetaStyle.Render(fmt.Sprintf(" %d%%", vol))
+	return PlayerMetaStyle.Render(IconVolume+" ") + bar + PlayerMetaStyle.Render(fmt.Sprintf(" %3d%%", vol))
 }
 
 // padLine joins left and right text, filling the gap with spaces to reach width.
