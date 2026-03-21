@@ -1,4 +1,4 @@
-# subtonic
+# 🍸 subtonic
 
 Terminal UI for Subsonic-compatible music servers.
 
