@@ -159,6 +159,6 @@ func SongTableStyles() table.Styles {
 		Selected: lipgloss.NewStyle().
 			Foreground(colorHighlight).
 			Bold(true).
-			PaddingLeft(2),
+			Padding(0, 1),
 	}
 }

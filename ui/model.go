@@ -1731,13 +1731,21 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 	songs, _ := m.viewData.([]api.Song)
 	showAlbum := m.activeTab == TabPlaylists
 	dimStyle := lipgloss.NewStyle().Foreground(colorDimText)
+	heartW := 1
+
+	heart := func(song api.Song) string {
+		if song.Starred != "" {
+			return "♥"
+		}
+		return ""
+	}
 
 	if showAlbum {
-		numCols := 5
+		numCols := 6
 		padding := 2 * numCols
 		trackW := 3
 		timeW := 6
-		fixedW := trackW + timeW
+		fixedW := trackW + timeW + heartW
 		remaining := contentW - fixedW - padding
 		if remaining < 30 {
 			remaining = 30
@@ -1751,6 +1759,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 			{Title: "Artist", Width: artistW},
 			{Title: "Album", Width: albumW},
 			{Title: "Time", Width: timeW},
+			{Title: "♥", Width: heartW},
 		}
 		rows := make([]table.Row, len(songs))
 		for i, song := range songs {
@@ -1760,7 +1769,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 					dimStyle.Render(song.Title),
 					dimStyle.Render(song.Artist),
 					dimStyle.Render(song.Album),
-					"",
+					"", "",
 				}
 				continue
 			}
@@ -1771,6 +1780,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 				song.Artist,
 				song.Album,
 				durStr,
+				heart(song),
 			}
 		}
 		return cols, rows
@@ -1780,8 +1790,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 	padding := 2 * numCols
 	trackW := 5
 	timeW := 6
-	kbpsW := 5
-	fixedW := trackW + timeW + kbpsW
+	fixedW := trackW + timeW + heartW
 	remaining := contentW - fixedW - padding
 	if remaining < 20 {
 		remaining = 20
@@ -1793,23 +1802,18 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 		{Title: "Title", Width: titleW},
 		{Title: "Artist", Width: artistW},
 		{Title: "Time", Width: timeW},
-		{Title: "Kbps", Width: kbpsW},
+		{Title: "♥", Width: heartW},
 	}
 	rows := make([]table.Row, len(songs))
 	for i, song := range songs {
 		trackStr := formatTrackNumber(song.Track, song.DiscNumber)
 		durStr := fmt.Sprintf("%d:%02d", song.Duration/60, song.Duration%60)
-		bitrateStr := ""
-		if song.BitRate > 0 {
-			bitrateStr = fmt.Sprintf("%d", song.BitRate)
-		}
 		if song.ID == "" {
 			rows[i] = table.Row{
 				dimStyle.Render("✗"),
 				dimStyle.Render(song.Title),
 				dimStyle.Render(song.Artist),
-				"",
-				"",
+				"", "",
 			}
 			continue
 		}
@@ -1818,7 +1822,7 @@ func (m *Model) buildSongsTable() ([]table.Column, []table.Row) {
 			song.Title,
 			song.Artist,
 			durStr,
-			bitrateStr,
+			heart(song),
 		}
 	}
 	return cols, rows
