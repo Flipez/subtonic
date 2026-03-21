@@ -24,8 +24,7 @@ type Tab int
 
 const (
 	TabDiscover Tab = iota
-	TabArtists
-	TabAlbums
+	TabBrowse
 	TabPlaylists
 	TabPodcasts
 	TabSearch
@@ -51,6 +50,7 @@ const (
 	ViewQueue
 	ViewPlaylistPicker
 	ViewSonosPicker
+	ViewBrowse
 )
 
 // SearchResultItem is a tagged union for mixed search results.
@@ -65,15 +65,27 @@ type SearchResultItem struct {
 type DiscoverOption struct {
 	Label       string
 	Description string
-	Action      string // "random", "starred", "genres", "similar", "top"
+	Action      string // "random", "similar", "top"
 }
 
 var discoverOptions = []DiscoverOption{
 	{Label: "Random Songs", Description: "Shuffle across entire library", Action: "random"},
-	{Label: "Starred", Description: "Favorited artists, albums, and songs", Action: "starred"},
-	{Label: "By Genre", Description: "Pick a genre, get songs", Action: "genres"},
 	{Label: "Similar", Description: "Based on currently playing song", Action: "similar"},
 	{Label: "Top Songs", Description: "Top tracks of currently playing artist", Action: "top"},
+}
+
+// BrowseOption represents a category in the Browse tab.
+type BrowseOption struct {
+	Label       string
+	Description string
+	Action      string // "artists", "albums", "genres", "starred"
+}
+
+var browseOptions = []BrowseOption{
+	{Label: "Artists", Description: "Browse by artist", Action: "artists"},
+	{Label: "Albums", Description: "Browse all albums", Action: "albums"},
+	{Label: "By Genre", Description: "Pick a genre, get songs", Action: "genres"},
+	{Label: "Starred", Description: "Favorited artists, albums, and songs", Action: "starred"},
 }
 
 
@@ -473,31 +485,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabArtists)
+			m.switchTab(TabBrowse)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab3):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabAlbums)
+			m.switchTab(TabPlaylists)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab4):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabPlaylists)
-			return m, nil
-
-		case key.Matches(msg, GlobalKeys.Tab5):
-			if m.viewType == ViewQueue {
-				return m, nil
-			}
 			m.switchTab(TabPodcasts)
 			return m, nil
 
-		case key.Matches(msg, GlobalKeys.Tab6):
+		case key.Matches(msg, GlobalKeys.Tab5):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
@@ -581,7 +586,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.showToast(fmt.Sprintf("Error loading artists: %v", msg.Err), ToastError, toastLong)
 		}
 		m.artists = msg.Artists
-		if m.activeTab == TabArtists && len(m.navStack) == 0 {
+		if m.viewType == ViewArtists {
 			m.setView(ViewArtists, m.artists)
 		}
 		return m, nil
@@ -592,7 +597,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.showToast(fmt.Sprintf("Error loading albums: %v", msg.Err), ToastError, toastLong)
 		}
 		m.albumList = msg.Albums
-		if m.activeTab == TabAlbums && len(m.navStack) == 0 {
+		if m.viewType == ViewAlbums {
 			m.setView(ViewAlbums, m.albumList)
 		}
 		return m, nil
@@ -1166,10 +1171,8 @@ func (m *Model) populateView() {
 	switch m.activeTab {
 	case TabDiscover:
 		m.setView(ViewDiscover, discoverOptions)
-	case TabArtists:
-		m.setView(ViewArtists, m.artists)
-	case TabAlbums:
-		m.setView(ViewAlbums, m.albumList)
+	case TabBrowse:
+		m.setView(ViewBrowse, browseOptions)
 	case TabPlaylists:
 		m.setView(ViewPlaylists, m.playlists)
 	case TabPodcasts:
@@ -1201,10 +1204,8 @@ func (m *Model) refresh() (tea.Model, tea.Cmd) {
 			cmds = append(cmds, loadLBRecommendedCmd(m.lb, m.api, m.lb.Username()))
 		}
 		return m, tea.Batch(cmds...)
-	case TabArtists:
-		return m.loadWithSpinner(loadArtistsCmd(m.api))
-	case TabAlbums:
-		return m.loadWithSpinner(loadAlbumListCmd(m.api))
+	case TabBrowse:
+		return m.loadWithSpinner(tea.Batch(loadArtistsCmd(m.api), loadAlbumListCmd(m.api)))
 	case TabPlaylists:
 		return m.loadWithSpinner(loadPlaylistsCmd(m.api))
 	case TabPodcasts:
@@ -1273,8 +1274,40 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 		return m.handleEnterSearchResults(idx)
 	case ViewQueue:
 		return m.handleEnterQueue(idx)
+	case ViewBrowse:
+		return m.handleEnterBrowse(idx)
 	}
 
+	return m, nil
+}
+
+func (m *Model) handleEnterBrowse(idx int) (tea.Model, tea.Cmd) {
+	if idx < 0 || idx >= len(browseOptions) {
+		return m, nil
+	}
+	opt := browseOptions[idx]
+	switch opt.Action {
+	case "artists":
+		m.pushNav("Artists")
+		m.setView(ViewArtists, m.artists)
+		if len(m.artists) == 0 {
+			return m.loadWithSpinner(loadArtistsCmd(m.api))
+		}
+		return m, nil
+	case "albums":
+		m.pushNav("Albums")
+		m.setView(ViewAlbums, m.albumList)
+		if len(m.albumList) == 0 {
+			return m.loadWithSpinner(loadAlbumListCmd(m.api))
+		}
+		return m, nil
+	case "genres":
+		m.pushNav("By Genre")
+		return m.loadWithSpinner(loadGenresCmd(m.api))
+	case "starred":
+		m.pushNav("Starred")
+		return m.loadWithSpinner(loadStarredCmd(m.api))
+	}
 	return m, nil
 }
 
@@ -1581,6 +1614,8 @@ func (m *Model) buildTable() {
 		cols, rows = m.buildQueueTable()
 	case ViewSonosPicker:
 		cols, rows = m.buildSonosPickerTable()
+	case ViewBrowse:
+		cols, rows = m.buildBrowseTable()
 	}
 
 	// Clear rows first so UpdateViewport (triggered by SetColumns) doesn't
@@ -1988,6 +2023,29 @@ func (m *Model) buildSonosPickerTable() ([]table.Column, []table.Row) {
 	return cols, rows
 }
 
+func (m *Model) buildBrowseTable() ([]table.Column, []table.Row) {
+	contentW := m.width - 4
+	if contentW < 1 {
+		contentW = 1
+	}
+	numCols := 2
+	padding := 2 * numCols
+	descW := 40
+	nameW := contentW - descW - padding
+	if nameW < 10 {
+		nameW = 10
+	}
+	cols := []table.Column{
+		{Title: "Browse", Width: nameW},
+		{Title: "Description", Width: descW},
+	}
+	rows := make([]table.Row, len(browseOptions))
+	for i, opt := range browseOptions {
+		rows[i] = table.Row{opt.Label, opt.Description}
+	}
+	return cols, rows
+}
+
 func (m *Model) relayout() {
 	headerH := 3
 	breadcrumbH := 1
@@ -2160,11 +2218,10 @@ func (m *Model) renderNavBar(contentW int) string {
 		tab   Tab
 	}{
 		{"1 Discover", TabDiscover},
-		{"2 Artists", TabArtists},
-		{"3 Albums", TabAlbums},
-		{"4 Playlists", TabPlaylists},
-		{"5 Podcasts", TabPodcasts},
-		{"6 Search", TabSearch},
+		{"2 Browse", TabBrowse},
+		{"3 Playlists", TabPlaylists},
+		{"4 Podcasts", TabPodcasts},
+		{"5 Search", TabSearch},
 	}
 
 	parts := make([]string, len(tabs))
@@ -2187,8 +2244,7 @@ func (m *Model) renderNavBar(contentW int) string {
 func (m *Model) renderBreadcrumb() string {
 	tabNames := map[Tab]string{
 		TabDiscover:  "Discover",
-		TabArtists:   "Artists",
-		TabAlbums:    "Albums",
+		TabBrowse:    "Browse",
 		TabPlaylists: "Playlists",
 		TabPodcasts:  "Podcasts",
 		TabSearch:    "Search",
@@ -2729,7 +2785,7 @@ func (m *Model) renderHelpPopup() string {
 		{
 			"Navigation",
 			[]entry{
-				{"1 – 6", "switch tab"},
+				{"1 – 5", "switch tab"},
 				{"/", "filter / search"},
 				{"esc", "go back"},
 				{"Q", "open queue"},
@@ -2763,6 +2819,11 @@ func (m *Model) renderHelpPopup() string {
 			{"d / del", "remove from queue"},
 			{"J", "move song down"},
 			{"K", "move song up"},
+		}
+	case ViewBrowse:
+		viewTitle = "Browse"
+		viewEntries = []entry{
+			{"enter", "open category"},
 		}
 	case ViewArtists:
 		viewTitle = "Artists"
@@ -2866,12 +2927,6 @@ func (m *Model) handleQuickAction(opt DiscoverOption) (tea.Model, tea.Cmd) {
 	case "random":
 		m.pushNav("Random Songs")
 		return m.loadWithSpinner(loadRandomSongsCmd(m.api))
-	case "starred":
-		m.pushNav("Starred")
-		return m.loadWithSpinner(loadStarredCmd(m.api))
-	case "genres":
-		m.pushNav("By Genre")
-		return m.loadWithSpinner(loadGenresCmd(m.api))
 	case "similar":
 		song := m.pl.CurrentSong()
 		if song == nil {

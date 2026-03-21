@@ -18,7 +18,6 @@ type globalKeys struct {
 	Tab3      key.Binding
 	Tab4      key.Binding
 	Tab5      key.Binding
-	Tab6      key.Binding
 	Refresh   key.Binding
 	Shuffle   key.Binding
 	Repeat    key.Binding
@@ -48,11 +47,10 @@ var GlobalKeys = globalKeys{
 	Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	Tab1:      key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "discover")),
-	Tab2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "artists")),
-	Tab3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "albums")),
-	Tab4:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "playlists")),
-	Tab5:      key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "podcasts")),
-	Tab6:      key.NewBinding(key.WithKeys("6"), key.WithHelp("6", "search")),
+	Tab2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "browse")),
+	Tab3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "playlists")),
+	Tab4:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "podcasts")),
+	Tab5:      key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "search")),
 	Refresh:   key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "refresh")),
 	Shuffle:   key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "shuffle")),
 	Repeat:    key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "repeat")),
