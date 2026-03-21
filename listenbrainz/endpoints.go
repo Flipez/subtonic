@@ -69,7 +69,7 @@ func (c *Client) GetPopularByArtist(artistName, recordingName string) ([]Recordi
 		"recording_name": {recordingName},
 	})
 	if err != nil {
-		return nil, nil // Return empty, not error
+		return nil, err
 	}
 
 	var meta metadataLookupResponse
@@ -82,12 +82,12 @@ func (c *Client) GetPopularByArtist(artistName, recordingName string) ([]Recordi
 	// Step 2: popular recordings for the artist (response is a plain JSON array)
 	data, err = c.get(fmt.Sprintf("/1/popularity/top-recordings-for-artist/%s", artistMBID), url.Values{})
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	var popResp []popularRecording
 	if err := json.Unmarshal(data, &popResp); err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	var recordings []Recording
