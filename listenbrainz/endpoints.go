@@ -191,9 +191,6 @@ func (c *Client) GetRecommendations(username string, count int) ([]Recording, er
 	if err != nil {
 		return nil, err
 	}
-	if data == nil {
-		return nil, nil
-	}
 
 	var resp cfRecommendationsResponse
 	if err := json.Unmarshal(data, &resp); err != nil {

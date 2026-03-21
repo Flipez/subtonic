@@ -5,6 +5,7 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
+	lipgloss "charm.land/lipgloss/v2"
 
 	"github.com/Flipez/subtonic/api"
 	"github.com/Flipez/subtonic/config"
@@ -36,6 +37,7 @@ func main() {
 
 	lb := listenbrainz.NewClient(cfg.ListenBrainz.Token, cfg.ListenBrainz.Username)
 
+	ui.InitTheme(lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
 	model := ui.New(client, pl, cfg, lb)
 	prog := tea.NewProgram(model)
 	pl.SetProgram(prog)

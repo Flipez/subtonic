@@ -15,7 +15,6 @@ const maxVisibleCards = 5
 // discoverSections returns the list of active sections with their labels and item counts.
 func (m *Model) discoverSections() []discoverSec {
 	var secs []discoverSec
-	secs = append(secs, discoverSec{label: "Quick Actions", kind: secQuickActions, count: len(discoverOptions)})
 	if len(m.lbRecommended) > 0 {
 		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
 	}
@@ -61,8 +60,7 @@ func (m *Model) discoverSections() []discoverSec {
 type secKind int
 
 const (
-	secQuickActions secKind = iota
-	secRecent
+	secRecent secKind = iota
 	secNewest
 	secFrequent
 	secLBTrending
@@ -114,7 +112,7 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 		labelText := labelStyle.Render(s.label)
 
 		// Show scroll arrows for sections with more items than visible
-		if s.kind != secQuickActions && s.count > maxVisibleCards {
+		if s.count > maxVisibleCards {
 			arrowStyle := SubtextStyle
 			if isFocused {
 				arrowStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
@@ -131,8 +129,6 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 
 		var body string
 		switch s.kind {
-		case secQuickActions:
-			body = m.renderQuickActions(contentW, isFocused)
 		case secRecent:
 			body = m.renderAlbumRow(m.discoverRecent, contentW, isFocused)
 		case secNewest:
@@ -153,13 +149,7 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 			body = m.renderTrackRow(m.lbRecommended, contentW, isFocused)
 		}
 
-		var block string
-		if s.kind == secQuickActions {
-			// Label and chips on same line
-			block = label + "  " + body
-		} else {
-			block = lipgloss.JoinVertical(lipgloss.Left, label, body)
-		}
+		block := lipgloss.JoinVertical(lipgloss.Left, label, body)
 		rendered = append(rendered, renderedSection{content: block, height: lipgloss.Height(block)})
 	}
 
@@ -228,15 +218,6 @@ func splitLines(s string) []string {
 	}
 	lines = append(lines, s[start:])
 	return lines
-}
-
-func (m *Model) renderQuickActions(contentW int, focused bool) string {
-	var items []string
-	for i, opt := range discoverOptions {
-		selected := focused && i == m.discoverItem
-		items = append(items, renderChip(opt.Label, selected))
-	}
-	return " " + lipgloss.JoinHorizontal(lipgloss.Center, items...)
 }
 
 func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {

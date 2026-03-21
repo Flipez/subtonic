@@ -178,3 +178,10 @@ type SonosDiscoveredMsg struct {
 	Devices []sonos.Device
 	Err     error
 }
+
+// sonosSongEndedMsg is sent by the Sonos transport-state poll when the
+// speaker reports STOPPED. Unlike player.SongEndedMsg (which comes from the
+// local beep callback and is always authoritative), this message may arrive
+// after the user has already switched back to local mode, so it is only acted
+// on when IsSonosMode() is still true at handle time.
+type sonosSongEndedMsg struct{}

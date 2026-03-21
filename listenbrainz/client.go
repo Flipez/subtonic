@@ -56,9 +56,6 @@ func (c *Client) get(path string, query url.Values) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusNoContent {
-		return nil, nil
-	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("listenbrainz: HTTP %d", resp.StatusCode)
 	}

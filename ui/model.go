@@ -170,6 +170,10 @@ type Model struct {
 
 	// Help popup
 	showHelp bool
+
+	// Quick actions popup
+	showQuickActions bool
+	quickActionsIdx  int
 }
 
 func New(client *api.Client, pl *player.Player, cfg config.Config, lb *listenbrainz.Client) Model {
@@ -255,6 +259,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showHelp {
 			m.showHelp = false
 			return m, nil
+		}
+
+		// Quick actions popup: navigable; x/esc closes, enter activates.
+		if m.showQuickActions {
+			return m.updateQuickActions(msg)
 		}
 
 		// When server search input is active, intercept keys
@@ -449,6 +458,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = true
 			return m, nil
 
+		case key.Matches(msg, GlobalKeys.QuickActions):
+			m.showQuickActions = !m.showQuickActions
+			return m, nil
+
 		case key.Matches(msg, GlobalKeys.Tab1):
 			if m.viewType == ViewQueue {
 				return m, nil
@@ -542,7 +555,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, func() tea.Msg {
 				state, err := pl.SonosTransportState()
 				if err == nil && state == "STOPPED" {
-					return player.SongEndedMsg{}
+					return sonosSongEndedMsg{}
 				}
 				return nil
 			})
@@ -552,6 +565,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case player.SongEndedMsg:
 		return m, m.nextTrack()
+
+	case sonosSongEndedMsg:
+		// Only advance if still in Sonos mode — stale polls arrive after
+		// switching back to local (DisableSonos calls Stop(), making in-flight
+		// goroutines see "STOPPED" and return this message).
+		if m.pl.IsSonosMode() {
+			return m, m.nextTrack()
+		}
+		return m, nil
 
 	case ArtistsLoadedMsg:
 		m.loading = false
@@ -2062,10 +2084,23 @@ func (m Model) View() tea.View {
 
 	main := lipgloss.JoinVertical(lipgloss.Left, header, breadcrumb, content, player, helpLine)
 
-	// Overlay: help popup (centered) or toast (top-right).
+	// Composite: main content + optional overlays.
 	layers := []*lipgloss.Layer{lipgloss.NewLayer(main).X(0).Y(0).Z(0)}
 	if m.showHelp {
 		popup := m.renderHelpPopup()
+		popupW := lipgloss.Width(popup)
+		popupH := lipgloss.Height(popup)
+		x := (m.width - popupW) / 2
+		y := (m.height - popupH) / 2
+		if x < 0 {
+			x = 0
+		}
+		if y < 0 {
+			y = 0
+		}
+		layers = append(layers, lipgloss.NewLayer(popup).X(x).Y(y).Z(10))
+	} else if m.showQuickActions {
+		popup := m.renderQuickActionsPopup()
 		popupW := lipgloss.Width(popup)
 		popupH := lipgloss.Height(popup)
 		x := (m.width - popupW) / 2
@@ -2085,44 +2120,12 @@ func (m Model) View() tea.View {
 		}
 		layers = append(layers, lipgloss.NewLayer(popup).X(x).Y(1).Z(10))
 	}
-	if len(layers) > 1 {
-		comp := lipgloss.NewCompositor(layers...)
-		canvas := lipgloss.NewCanvas(m.width, m.height)
-		canvas.Compose(comp)
-		return tea.View{Content: canvas.Render(), AltScreen: true}
-	}
-
-	return tea.View{Content: main, AltScreen: true}
+	comp := lipgloss.NewCompositor(layers...)
+	canvas := lipgloss.NewCanvas(m.width, m.height)
+	canvas.Compose(comp)
+	return tea.View{Content: canvas.Render(), AltScreen: true}
 }
 
-func (m *Model) renderDiscoverStats() string {
-	sep := SubtextStyle.Render(" · ")
-	var parts []string
-	if len(m.artists) > 0 {
-		parts = append(parts, SubtextStyle.Render(fmt.Sprintf("%d artists", len(m.artists))))
-	}
-	if len(m.albumList) > 0 {
-		parts = append(parts, SubtextStyle.Render(fmt.Sprintf("%d albums", len(m.albumList))))
-	}
-	if len(m.playlists) > 0 {
-		parts = append(parts, SubtextStyle.Render(fmt.Sprintf("%d playlists", len(m.playlists))))
-	}
-	info := m.api.ServerInfo()
-	if info.ServerVersion != "" {
-		label := info.ServerVersion
-		if info.Type != "" {
-			label = info.Type + " " + label
-		}
-		parts = append(parts, SubtextStyle.Render(label))
-	}
-	if info.Version != "" {
-		parts = append(parts, SubtextStyle.Render("API "+info.Version))
-	}
-	if len(parts) == 0 {
-		return ""
-	}
-	return strings.Join(parts, sep) + " "
-}
 
 func (m *Model) renderToastPopup() string {
 	if len(m.toasts) == 0 {
@@ -2146,7 +2149,7 @@ func (m *Model) renderToastPopup() string {
 }
 
 func (m *Model) renderNavBar(contentW int) string {
-	title := TitleBarStyle.Render("🍸 subtonic")
+	title := TitleBarStyle.Render("\uf000 subtonic")
 
 	tabs := []struct {
 		label string
@@ -2203,7 +2206,7 @@ func (m *Model) renderBreadcrumb() string {
 
 func (m *Model) renderRowCounter() string {
 	if m.viewType == ViewDiscover {
-		return m.renderDiscoverStats()
+		return ""
 	}
 	totalRows := len(m.table.Rows())
 	if totalRows == 0 {
@@ -2272,37 +2275,6 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 	sec := secs[m.discoverSection]
 
 	switch sec.kind {
-	case secQuickActions:
-		if m.discoverItem >= len(discoverOptions) {
-			return m, nil
-		}
-		opt := discoverOptions[m.discoverItem]
-		switch opt.Action {
-		case "random":
-			m.pushNav("Random Songs")
-			return m.loadWithSpinner(loadRandomSongsCmd(m.api))
-		case "starred":
-			m.pushNav("Starred")
-			return m.loadWithSpinner(loadStarredCmd(m.api))
-		case "genres":
-			m.pushNav("By Genre")
-			return m.loadWithSpinner(loadGenresCmd(m.api))
-		case "similar":
-			song := m.pl.CurrentSong()
-			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, toastLong)
-			}
-			m.pushNav("Similar")
-			return m.loadWithSpinner(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID))
-		case "top":
-			song := m.pl.CurrentSong()
-			if song == nil {
-				return m, m.showToast("No song currently playing", ToastError, toastLong)
-			}
-			m.pushNav("Top Songs")
-			return m.loadWithSpinner(loadTopSongsCmd(m.api, song.Artist))
-		}
-
 	case secRecent:
 		if m.discoverItem < len(m.discoverRecent) {
 			album := m.discoverRecent[m.discoverItem]
@@ -2715,13 +2687,16 @@ func (m *Model) renderHelp() string {
 		if m.viewType == ViewSongs || m.viewType == ViewSearchResults {
 			keys = append(keys, "a add to playlist", "e play next")
 		}
-		keys = append(keys, "? help")
+		keys = append(keys, "x actions", "? help")
 	}
 	parts := make([]string, len(keys))
 	for i, k := range keys {
 		parts[i] = PlayerHelpKeyStyle.Render(k)
 	}
-	return " " + strings.Join(parts, sep)
+	left := " " + strings.Join(parts, sep)
+	github := PlayerHelpKeyStyle.Hyperlink("https://github.com/Flipez/subtonic").Render("\uf09b")
+	right := github + sep + PlayerHelpKeyStyle.Hyperlink("https://shmbrt.de").Render("by shmbrt") + " "
+	return padLine(left, right, m.width)
 }
 
 // --- Help popup ---
@@ -2754,6 +2729,7 @@ func (m *Model) renderHelpPopup() string {
 				{"/", "filter / search"},
 				{"esc", "go back"},
 				{"Q", "open queue"},
+				{"x", "quick actions"},
 				{"R", "refresh"},
 				{"?", "close this help"},
 				{"q", "quit"},
@@ -2858,6 +2834,84 @@ func (m *Model) renderHelpPopup() string {
 		BorderForeground(colorFocused).
 		Padding(1, 2).
 		Render(content)
+}
+
+// --- Quick actions popup ---
+
+func (m *Model) updateQuickActions(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.quickActionsIdx > 0 {
+			m.quickActionsIdx--
+		}
+	case "down", "j":
+		if m.quickActionsIdx < len(discoverOptions)-1 {
+			m.quickActionsIdx++
+		}
+	case "enter":
+		m.showQuickActions = false
+		return m.handleQuickAction(discoverOptions[m.quickActionsIdx])
+	case "esc", "x":
+		m.showQuickActions = false
+	}
+	return m, nil
+}
+
+func (m *Model) handleQuickAction(opt DiscoverOption) (tea.Model, tea.Cmd) {
+	switch opt.Action {
+	case "random":
+		m.pushNav("Random Songs")
+		return m.loadWithSpinner(loadRandomSongsCmd(m.api))
+	case "starred":
+		m.pushNav("Starred")
+		return m.loadWithSpinner(loadStarredCmd(m.api))
+	case "genres":
+		m.pushNav("By Genre")
+		return m.loadWithSpinner(loadGenresCmd(m.api))
+	case "similar":
+		song := m.pl.CurrentSong()
+		if song == nil {
+			return m, m.showToast("No song currently playing", ToastError, toastLong)
+		}
+		m.pushNav("Similar")
+		return m.loadWithSpinner(loadSimilarSongsCmd(m.api, song.ID, song.ArtistID))
+	case "top":
+		song := m.pl.CurrentSong()
+		if song == nil {
+			return m, m.showToast("No song currently playing", ToastError, toastLong)
+		}
+		m.pushNav("Top Songs")
+		return m.loadWithSpinner(loadTopSongsCmd(m.api, song.Artist))
+	}
+	return m, nil
+}
+
+func (m *Model) renderQuickActionsPopup() string {
+	const labelW = 16
+	var lines []string
+	lines = append(lines, HelpSectionStyle.Render("Quick Actions"))
+	lines = append(lines, "")
+	for i, opt := range discoverOptions {
+		selected := i == m.quickActionsIdx
+		var prefix string
+		var label string
+		if selected {
+			prefix = HelpKeyStyle.Render("> ")
+			label = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true).Width(labelW).Render(opt.Label)
+		} else {
+			prefix = "  "
+			label = HelpKeyStyle.Width(labelW).Render(opt.Label)
+		}
+		desc := HelpDescStyle.Render(opt.Description)
+		lines = append(lines, prefix+label+"  "+desc)
+	}
+	lines = append(lines, "")
+	lines = append(lines, PlayerHelpSepStyle.Render("↑↓ navigate · enter select · esc close"))
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocused).
+		Padding(1, 2).
+		Render(strings.Join(lines, "\n"))
 }
 
 // --- Sonos ---

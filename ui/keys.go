@@ -31,8 +31,9 @@ type globalKeys struct {
 	PlayNext    key.Binding
 	AddTo       key.Binding
 	NewPlaylist key.Binding
-	SonosToggle key.Binding
-	HelpToggle  key.Binding
+	SonosToggle  key.Binding
+	HelpToggle   key.Binding
+	QuickActions key.Binding
 }
 
 var GlobalKeys = globalKeys{
@@ -64,6 +65,7 @@ var GlobalKeys = globalKeys{
 	PlayNext:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "play next")),
 	AddTo:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add to playlist")),
 	NewPlaylist: key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new playlist")),
-	SonosToggle: key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle sonos output")),
-	HelpToggle:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	SonosToggle:  key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle sonos output")),
+	HelpToggle:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	QuickActions: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "quick actions")),
 }
