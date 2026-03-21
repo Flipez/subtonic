@@ -12,18 +12,31 @@ import (
 
 const maxVisibleCards = 5
 
-// discoverSections returns the list of active sections with their labels and item counts.
-func (m *Model) discoverSections() []discoverSec {
+// homeSections returns sections for the Home tab (recently/most played).
+func (m *Model) homeSections() []discoverSec {
 	var secs []discoverSec
-	secs = append(secs, discoverSec{label: "Quick Actions", kind: secQuickActions, count: len(discoverOptions)})
-	if len(m.lbRecommended) > 0 {
-		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
-	}
 	if len(m.discoverRecent) > 0 {
 		secs = append(secs, discoverSec{label: "Recently Played", kind: secRecent, count: len(m.discoverRecent)})
 	}
 	if len(m.discoverFrequent) > 0 {
 		secs = append(secs, discoverSec{label: "Most Played", kind: secFrequent, count: len(m.discoverFrequent)})
+	}
+	return secs
+}
+
+// currentSections returns the sections for whichever grid view is active.
+func (m *Model) currentSections() []discoverSec {
+	if m.viewType == ViewHome {
+		return m.homeSections()
+	}
+	return m.discoverSections()
+}
+
+// discoverSections returns sections for the Discover tab (algorithmic/LB content).
+func (m *Model) discoverSections() []discoverSec {
+	var secs []discoverSec
+	if len(m.lbRecommended) > 0 {
+		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
 	}
 	if len(m.lbTrending) > 0 {
 		secs = append(secs, discoverSec{label: "Trending (ListenBrainz)", kind: secLBTrending, count: len(m.lbTrending)})
@@ -61,8 +74,7 @@ func (m *Model) discoverSections() []discoverSec {
 type secKind int
 
 const (
-	secQuickActions secKind = iota
-	secRecent
+	secRecent secKind = iota
 	secNewest
 	secFrequent
 	secLBTrending
@@ -79,8 +91,15 @@ type discoverSec struct {
 	count int
 }
 
+func (m *Model) renderHome(contentW, contentH int) string {
+	return m.renderSectionGrid(m.homeSections(), contentW, contentH)
+}
+
 func (m *Model) renderDiscover(contentW, contentH int) string {
-	secs := m.discoverSections()
+	return m.renderSectionGrid(m.discoverSections(), contentW, contentH)
+}
+
+func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) string {
 	if len(secs) == 0 {
 		return ""
 	}
@@ -114,12 +133,12 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 		labelText := labelStyle.Render(s.label)
 
 		// Show scroll arrows for sections with more items than visible
-		if s.kind != secQuickActions && s.count > maxVisibleCards {
+		if s.count > maxVisibleCards {
 			arrowStyle := SubtextStyle
 			if isFocused {
 				arrowStyle = lipgloss.NewStyle().Foreground(colorText).Bold(true)
 			}
-			arrow := arrowStyle.Render("▶")
+			arrow := arrowStyle.Render(IconChevronRight)
 			padding := contentW - lipgloss.Width(labelText) - lipgloss.Width(arrow) - 2
 			if padding < 1 {
 				padding = 1
@@ -131,8 +150,6 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 
 		var body string
 		switch s.kind {
-		case secQuickActions:
-			body = m.renderQuickActions(contentW, isFocused)
 		case secRecent:
 			body = m.renderAlbumRow(m.discoverRecent, contentW, isFocused)
 		case secNewest:
@@ -153,13 +170,7 @@ func (m *Model) renderDiscover(contentW, contentH int) string {
 			body = m.renderTrackRow(m.lbRecommended, contentW, isFocused)
 		}
 
-		var block string
-		if s.kind == secQuickActions {
-			// Label and chips on same line
-			block = label + "  " + body
-		} else {
-			block = lipgloss.JoinVertical(lipgloss.Left, label, body)
-		}
+		block := lipgloss.JoinVertical(lipgloss.Left, label, body)
 		rendered = append(rendered, renderedSection{content: block, height: lipgloss.Height(block)})
 	}
 
@@ -228,15 +239,6 @@ func splitLines(s string) []string {
 	}
 	lines = append(lines, s[start:])
 	return lines
-}
-
-func (m *Model) renderQuickActions(contentW int, focused bool) string {
-	var items []string
-	for i, opt := range discoverOptions {
-		selected := focused && i == m.discoverItem
-		items = append(items, renderChip(opt.Label, selected))
-	}
-	return " " + lipgloss.JoinHorizontal(lipgloss.Center, items...)
 }
 
 func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {
@@ -361,7 +363,7 @@ func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused boo
 		var indicator string
 
 		if dt.Available {
-			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render("✓")
+			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render(IconCheck)
 			if selected {
 				borderColor = colorFocused
 				nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
@@ -371,7 +373,7 @@ func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused boo
 			}
 			artistStyle = SubtextStyle
 		} else {
-			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render("✗")
+			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render(IconClose)
 			if selected {
 				borderColor = colorDimText
 			} else {
@@ -448,7 +450,7 @@ func (m *Model) renderReleaseRow(releases []DiscoverRelease, contentW int, focus
 		var indicator string
 
 		if dr.Available {
-			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render("✓")
+			indicator = lipgloss.NewStyle().Foreground(colorPlaying).Render(IconCheck)
 			if selected {
 				borderColor = colorFocused
 				nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
@@ -458,7 +460,7 @@ func (m *Model) renderReleaseRow(releases []DiscoverRelease, contentW int, focus
 			}
 			artistStyle = SubtextStyle
 		} else {
-			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render("✗")
+			indicator = lipgloss.NewStyle().Foreground(colorDimText).Render(IconClose)
 			if selected {
 				borderColor = colorDimText
 			} else {

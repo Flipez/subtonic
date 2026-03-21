@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -152,27 +153,20 @@ func loadDiscoverDataCmd(client *api.Client) tea.Cmd {
 		recent, err1 := client.GetAlbumList2("recent", 5, 0)
 		newest, err2 := client.GetAlbumList2("newest", 5, 0)
 		frequent, err3 := client.GetAlbumList2("frequent", 5, 0)
-		var err error
-		if err1 != nil {
-			err = err1
-		} else if err2 != nil {
-			err = err2
-		} else if err3 != nil {
-			err = err3
-		}
-		return DiscoverDataLoadedMsg{Recent: recent, Newest: newest, Frequent: frequent, Err: err}
+		return DiscoverDataLoadedMsg{Recent: recent, Newest: newest, Frequent: frequent, Err: errors.Join(err1, err2, err3)}
 	}
 }
 
+
+func stringMatchesFold(haystack, needle string) bool {
+	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+}
 
 func matchTrack(subsonic *api.Client, artist, title string) DiscoverTrack {
 	dt := DiscoverTrack{
 		Title:  title,
 		Artist: artist,
 	}
-	titleLower := strings.ToLower(title)
-	artistLower := strings.ToLower(artist)
-
 	// Try combined query first, then title-only as fallback for search
 	queries := []string{artist + " " + title, title}
 	for _, query := range queries {
@@ -190,7 +184,7 @@ func matchTrack(subsonic *api.Client, artist, title string) DiscoverTrack {
 		}
 		// Substring containment on both title and artist
 		for _, s := range songs {
-			if strings.Contains(strings.ToLower(s.Title), titleLower) && strings.Contains(strings.ToLower(s.Artist), artistLower) {
+			if stringMatchesFold(s.Title, title) && stringMatchesFold(s.Artist, artist) {
 				dt.Available = true
 				dt.Song = s
 				return dt
@@ -218,10 +212,8 @@ func matchRelease(subsonic *api.Client, artist, albumTitle, date string) Discove
 		}
 	}
 	// Fallback: substring match
-	albumLower := strings.ToLower(albumTitle)
-	artistLower := strings.ToLower(artist)
 	for _, a := range result.Albums {
-		if strings.Contains(strings.ToLower(a.Name), albumLower) && strings.Contains(strings.ToLower(a.Artist), artistLower) {
+		if stringMatchesFold(a.Name, albumTitle) && stringMatchesFold(a.Artist, artist) {
 			dr.Available = true
 			dr.Album = a
 			return dr

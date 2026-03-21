@@ -116,13 +116,7 @@ func (c *Client) StreamURL(id string) string {
 	// The native decoders (FLAC, OGG/Vorbis) are truly streaming and don't
 	// require buffering the entire file before playback — unlike go-mp3 which
 	// reads the whole file in New(). We omit f=json; stream is a binary endpoint.
-	v := url.Values{}
-	v.Set("u", c.username)
-	v.Set("t", c.token)
-	v.Set("s", c.salt)
-	v.Set("v", apiVersion)
-	v.Set("c", clientName)
-	v.Set("id", id)
-	v.Set("format", "raw")
-	return fmt.Sprintf("%s/rest/stream?%s", c.baseURL, v.Encode())
+	p := c.params(url.Values{"id": {id}, "format": {"raw"}})
+	p.Del("f") // stream is binary, not JSON
+	return fmt.Sprintf("%s/rest/stream?%s", c.baseURL, p.Encode())
 }

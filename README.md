@@ -2,12 +2,15 @@
 
 Terminal UI for Subsonic-compatible music servers.
 
-![Discover tab](docs/discover.png)
+> Requires a [Nerd Font](https://www.nerdfonts.com/) in your terminal for icons.
+
+![Home tab](docs/discover.png)
 
 ## Requirements
 
 - A running Subsonic-compatible server (Navidrome, Airsonic, etc.)
 - Go 1.21+
+- A Nerd Font in your terminal emulator
 
 ## Install
 
@@ -49,7 +52,7 @@ subtonic
 
 | Key | Action |
 |-----|--------|
-| `1`–`6` | Switch tab (Discover / Artists / Albums / Playlists / Podcasts / Search) |
+| `1`–`6` | Switch tab (Home / Discover / Browse / Playlists / Podcasts / Search) |
 | `enter` | Open / play |
 | `esc` | Go back |
 | `/` | Filter current list |
@@ -84,13 +87,30 @@ Press `o` to discover and connect to a Sonos speaker or group. Playback routes d
 
 ## Tabs
 
-**Discover** — Quick actions (random, starred, by genre, similar, top songs) plus ListenBrainz sections if a username is configured.
+**Home** — Recently added albums displayed as a browsable grid. Navigate with arrow keys or `hjkl`.
 
-**Artists / Albums / Playlists / Podcasts** — Browse your library.
+**Discover** — Quick actions (random, starred, by genre, similar artists, top songs) plus ListenBrainz sections if a username is configured.
+
+![Discover tab](docs/listenbrainz.png)
+
+**Browse** — Library navigation: Artists, Albums (sorted newest-first), By Genre (sorted A–Z), and Starred items.
+
+**Playlists** — Your playlists. Create, delete, and manage tracks.
+
+**Podcasts** — Podcast subscriptions and episodes.
 
 **Search** — Server-side search across artists, albums, and tracks.
 
 ![Search](docs/search.png)
+
+## Player bar
+
+The player bar is a single line showing:
+
+- Play/pause state and queue position (e.g. `3/12`)
+- A gradient progress bar with the track name and artist overlaid on the left, and the current position/duration on the right (e.g. `2:15 / 4:05`)
+- Shuffle 󰒝 and repeat 󰑖/󰑗 indicators (always visible, fixed width)
+- Volume level
 
 ## ListenBrainz
 

@@ -31,8 +31,9 @@ type globalKeys struct {
 	PlayNext    key.Binding
 	AddTo       key.Binding
 	NewPlaylist key.Binding
-	SonosToggle key.Binding
-	HelpToggle  key.Binding
+	SonosToggle  key.Binding
+	HelpToggle   key.Binding
+	QuickActions key.Binding
 }
 
 var GlobalKeys = globalKeys{
@@ -46,9 +47,9 @@ var GlobalKeys = globalKeys{
 	VolDownLarge: key.NewBinding(key.WithKeys("_"), key.WithHelp("_", "vol-5")),
 	Search:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Back:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-	Tab1:      key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "discover")),
-	Tab2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "artists")),
-	Tab3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "albums")),
+	Tab1:      key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "home")),
+	Tab2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "discover")),
+	Tab3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "browse")),
 	Tab4:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "playlists")),
 	Tab5:      key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "podcasts")),
 	Tab6:      key.NewBinding(key.WithKeys("6"), key.WithHelp("6", "search")),
@@ -64,6 +65,7 @@ var GlobalKeys = globalKeys{
 	PlayNext:    key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "play next")),
 	AddTo:       key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add to playlist")),
 	NewPlaylist: key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new playlist")),
-	SonosToggle: key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle sonos output")),
-	HelpToggle:  key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	SonosToggle:  key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle sonos output")),
+	HelpToggle:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	QuickActions: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "quick actions")),
 }

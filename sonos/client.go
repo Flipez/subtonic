@@ -38,6 +38,11 @@ func (c *Client) DeviceName() string {
 	return c.device.Name
 }
 
+// GroupSize returns the total number of speakers in the group (coordinator + members).
+func (c *Client) GroupSize() int {
+	return 1 + len(c.device.MemberAVTransportURLs)
+}
+
 // Discover sends SSDP M-SEARCH, fetches device descriptions, then queries
 // ZoneGroupTopology so that groups (multi-room) are shown as a single entry
 // whose commands go to the group coordinator.
