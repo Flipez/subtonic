@@ -23,7 +23,8 @@ import (
 type Tab int
 
 const (
-	TabDiscover Tab = iota
+	TabHome Tab = iota
+	TabDiscover
 	TabBrowse
 	TabPlaylists
 	TabPodcasts
@@ -51,6 +52,7 @@ const (
 	ViewPlaylistPicker
 	ViewSonosPicker
 	ViewBrowse
+	ViewHome
 )
 
 // SearchResultItem is a tagged union for mixed search results.
@@ -219,15 +221,15 @@ func New(client *api.Client, pl *player.Player, cfg config.Config, lb *listenbra
 		pl:          pl,
 		cfg:         cfg,
 		lb:          lb,
-		activeTab:   TabDiscover,
+		activeTab:   TabHome,
 		table:       t,
 		searchInput: input,
 		serverInput: serverInput,
 		pickerInput: pickerInput,
 		bar:         NewPlayerBar(0),
 		spinner:     sp,
-		viewType:    ViewDiscover,
-		viewData:    discoverOptions,
+		viewType:    ViewHome,
+		viewData:    nil,
 	}
 
 	return m
@@ -478,31 +480,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabDiscover)
+			m.switchTab(TabHome)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab2):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabBrowse)
+			m.switchTab(TabDiscover)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab3):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabPlaylists)
+			m.switchTab(TabBrowse)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab4):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
-			m.switchTab(TabPodcasts)
+			m.switchTab(TabPlaylists)
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab5):
+			if m.viewType == ViewQueue {
+				return m, nil
+			}
+			m.switchTab(TabPodcasts)
+			return m, nil
+
+		case key.Matches(msg, GlobalKeys.Tab6):
 			if m.viewType == ViewQueue {
 				return m, nil
 			}
@@ -518,14 +527,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Enter: drill down or play
 		if msg.String() == "enter" {
-			if m.viewType == ViewDiscover {
+			if m.viewType == ViewDiscover || m.viewType == ViewHome {
 				return m.handleDiscoverEnter()
 			}
 			return m.handleEnter()
 		}
 
-		// Discover grid navigation
-		if m.viewType == ViewDiscover {
+		// Home/Discover grid navigation
+		if m.viewType == ViewDiscover || m.viewType == ViewHome {
 			switch msg.String() {
 			case "up", "k":
 				return m.discoverMove(-1, 0)
@@ -1169,6 +1178,8 @@ func (m *Model) switchTab(tab Tab) {
 
 func (m *Model) populateView() {
 	switch m.activeTab {
+	case TabHome:
+		m.setView(ViewHome, nil)
 	case TabDiscover:
 		m.setView(ViewDiscover, discoverOptions)
 	case TabBrowse:
@@ -1185,6 +1196,8 @@ func (m *Model) populateView() {
 func (m *Model) refresh() (tea.Model, tea.Cmd) {
 	m.loading = true
 	switch m.activeTab {
+	case TabHome:
+		return m.loadWithSpinner(loadDiscoverDataCmd(m.api))
 	case TabDiscover:
 		cmds := []tea.Cmd{
 			loadDiscoverDataCmd(m.api), m.spinner.Tick,
@@ -2130,7 +2143,9 @@ func (m Model) View() tea.View {
 		if m.creatingNew {
 			contentParts = append(contentParts, m.pickerInput.View())
 		}
-		if m.viewType == ViewDiscover {
+		if m.viewType == ViewHome {
+			contentParts = append(contentParts, m.renderHome(contentW, contentHeight))
+		} else if m.viewType == ViewDiscover {
 			contentParts = append(contentParts, m.renderDiscover(contentW, contentHeight))
 		} else {
 			contentParts = append(contentParts, m.table.View())
@@ -2217,11 +2232,12 @@ func (m *Model) renderNavBar(contentW int) string {
 		label string
 		tab   Tab
 	}{
-		{"1 Discover", TabDiscover},
-		{"2 Browse", TabBrowse},
-		{"3 Playlists", TabPlaylists},
-		{"4 Podcasts", TabPodcasts},
-		{"5 Search", TabSearch},
+		{"1 Home", TabHome},
+		{"2 Discover", TabDiscover},
+		{"3 Browse", TabBrowse},
+		{"4 Playlists", TabPlaylists},
+		{"5 Podcasts", TabPodcasts},
+		{"6 Search", TabSearch},
 	}
 
 	parts := make([]string, len(tabs))
@@ -2243,6 +2259,7 @@ func (m *Model) renderNavBar(contentW int) string {
 
 func (m *Model) renderBreadcrumb() string {
 	tabNames := map[Tab]string{
+		TabHome:      "Home",
 		TabDiscover:  "Discover",
 		TabBrowse:    "Browse",
 		TabPlaylists: "Playlists",
@@ -2265,7 +2282,7 @@ func (m *Model) renderBreadcrumb() string {
 }
 
 func (m *Model) renderRowCounter() string {
-	if m.viewType == ViewDiscover {
+	if m.viewType == ViewDiscover || m.viewType == ViewHome {
 		return ""
 	}
 	totalRows := len(m.table.Rows())
@@ -2305,7 +2322,7 @@ func (m *Model) renderRowCounter() string {
 // --- Discover navigation ---
 
 func (m *Model) discoverMove(dSection, dItem int) (tea.Model, tea.Cmd) {
-	secs := m.discoverSections()
+	secs := m.currentSections()
 	if len(secs) == 0 {
 		return m, nil
 	}
@@ -2328,7 +2345,7 @@ func (m *Model) discoverMove(dSection, dItem int) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
-	secs := m.discoverSections()
+	secs := m.currentSections()
 	if m.discoverSection >= len(secs) {
 		return m, nil
 	}
@@ -2785,7 +2802,7 @@ func (m *Model) renderHelpPopup() string {
 		{
 			"Navigation",
 			[]entry{
-				{"1 – 5", "switch tab"},
+				{"1 – 6", "switch tab"},
 				{"/", "filter / search"},
 				{"esc", "go back"},
 				{"Q", "open queue"},
@@ -2819,6 +2836,12 @@ func (m *Model) renderHelpPopup() string {
 			{"d / del", "remove from queue"},
 			{"J", "move song down"},
 			{"K", "move song up"},
+		}
+	case ViewHome:
+		viewTitle = "Home"
+		viewEntries = []entry{
+			{"enter", "open album"},
+			{"↑↓←→ / hjkl", "navigate grid"},
 		}
 	case ViewBrowse:
 		viewTitle = "Browse"

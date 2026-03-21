@@ -12,17 +12,31 @@ import (
 
 const maxVisibleCards = 5
 
-// discoverSections returns the list of active sections with their labels and item counts.
-func (m *Model) discoverSections() []discoverSec {
+// homeSections returns sections for the Home tab (recently/most played).
+func (m *Model) homeSections() []discoverSec {
 	var secs []discoverSec
-	if len(m.lbRecommended) > 0 {
-		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
-	}
 	if len(m.discoverRecent) > 0 {
 		secs = append(secs, discoverSec{label: "Recently Played", kind: secRecent, count: len(m.discoverRecent)})
 	}
 	if len(m.discoverFrequent) > 0 {
 		secs = append(secs, discoverSec{label: "Most Played", kind: secFrequent, count: len(m.discoverFrequent)})
+	}
+	return secs
+}
+
+// currentSections returns the sections for whichever grid view is active.
+func (m *Model) currentSections() []discoverSec {
+	if m.viewType == ViewHome {
+		return m.homeSections()
+	}
+	return m.discoverSections()
+}
+
+// discoverSections returns sections for the Discover tab (algorithmic/LB content).
+func (m *Model) discoverSections() []discoverSec {
+	var secs []discoverSec
+	if len(m.lbRecommended) > 0 {
+		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
 	}
 	if len(m.lbTrending) > 0 {
 		secs = append(secs, discoverSec{label: "Trending (ListenBrainz)", kind: secLBTrending, count: len(m.lbTrending)})
@@ -77,8 +91,15 @@ type discoverSec struct {
 	count int
 }
 
+func (m *Model) renderHome(contentW, contentH int) string {
+	return m.renderSectionGrid(m.homeSections(), contentW, contentH)
+}
+
 func (m *Model) renderDiscover(contentW, contentH int) string {
-	secs := m.discoverSections()
+	return m.renderSectionGrid(m.discoverSections(), contentW, contentH)
+}
+
+func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) string {
 	if len(secs) == 0 {
 		return ""
 	}
