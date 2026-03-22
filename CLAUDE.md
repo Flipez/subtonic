@@ -2,7 +2,7 @@
 
 ## Module
 
-`github.com/Flipez/subtonic` (repo is `subsonic-tui`, module name differs)
+`github.com/Flipez/subtonic`
 
 ## Stack
 

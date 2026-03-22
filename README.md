@@ -19,8 +19,8 @@ go install github.com/Flipez/subtonic@latest
 Or build from source:
 
 ```
-git clone https://github.com/Flipez/subsonic-tui
-cd subsonic-tui
+git clone https://github.com/Flipez/subtonic
+cd subtonic
 go build -o subtonic .
 ```
 
