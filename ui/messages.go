@@ -179,6 +179,12 @@ type SonosDiscoveredMsg struct {
 	Err     error
 }
 
+type InfoLoadedMsg struct {
+	Title   string
+	Content string
+	Err     error
+}
+
 // sonosSongEndedMsg is sent by the Sonos transport-state poll when the
 // speaker reports STOPPED. Unlike player.SongEndedMsg (which comes from the
 // local beep callback and is always authoritative), this message may arrive

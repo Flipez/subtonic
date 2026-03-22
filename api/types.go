@@ -103,6 +103,8 @@ type subsonicResponseBody struct {
 	SimilarSongs2 *similarSongs2Result `json:"similarSongs2"`
 	TopSongs      *topSongsResult      `json:"topSongs"`
 	SongsByGenre  *songsByGenreResult  `json:"songsByGenre"`
+	ArtistInfo2   *ArtistInfo          `json:"artistInfo2"`
+	AlbumInfo     *AlbumInfo           `json:"albumInfo"`
 }
 
 type subsonicError struct {
@@ -178,4 +180,16 @@ type topSongsResult struct {
 
 type songsByGenreResult struct {
 	Songs []Song `json:"song"`
+}
+
+type ArtistInfo struct {
+	Biography     string `json:"biography"`
+	MusicBrainzID string `json:"musicBrainzId"`
+	LastFmUrl     string `json:"lastFmUrl"`
+}
+
+type AlbumInfo struct {
+	Notes         string `json:"notes"`
+	MusicBrainzID string `json:"musicBrainzId"`
+	LastFmUrl     string `json:"lastFmUrl"`
 }
