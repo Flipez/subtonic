@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/Flipez/subtonic/api"
@@ -519,4 +520,117 @@ func truncateStr(s string, maxW int) string {
 		runes = runes[:len(runes)-1]
 	}
 	return string(runes) + "…"
+}
+
+func (m *Model) discoverMove(dSection, dItem int) (tea.Model, tea.Cmd) {
+	secs := m.currentSections()
+	if len(secs) == 0 {
+		return m, nil
+	}
+	m.discoverSection += dSection
+	if m.discoverSection < 0 {
+		m.discoverSection = 0
+	}
+	if m.discoverSection >= len(secs) {
+		m.discoverSection = len(secs) - 1
+	}
+	sec := secs[m.discoverSection]
+	m.discoverItem += dItem
+	if m.discoverItem < 0 {
+		m.discoverItem = 0
+	}
+	if m.discoverItem >= sec.count {
+		m.discoverItem = sec.count - 1
+	}
+	return m, nil
+}
+
+func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
+	secs := m.currentSections()
+	if m.discoverSection >= len(secs) {
+		return m, nil
+	}
+	sec := secs[m.discoverSection]
+
+	switch sec.kind {
+	case secRecent:
+		if m.discoverItem < len(m.discoverRecent) {
+			album := m.discoverRecent[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
+		}
+
+	case secNewest:
+		if m.discoverItem < len(m.discoverNewest) {
+			album := m.discoverNewest[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
+		}
+
+	case secFrequent:
+		if m.discoverItem < len(m.discoverFrequent) {
+			album := m.discoverFrequent[m.discoverItem]
+			m.pushNav(album.Name)
+			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
+		}
+
+	case secLBTrending, secLBPopular, secLBDailyJams, secLBWeekly, secLBRecommended:
+		var tracks []DiscoverTrack
+		switch sec.kind {
+		case secLBTrending:
+			tracks = m.lbTrending
+		case secLBPopular:
+			tracks = m.lbPopular
+		case secLBDailyJams:
+			tracks = m.lbDailyJams
+		case secLBWeekly:
+			tracks = m.lbWeekly
+		case secLBRecommended:
+			tracks = m.lbRecommended
+		}
+		if m.discoverItem >= len(tracks) {
+			return m, nil
+		}
+		dt := tracks[m.discoverItem]
+		if !dt.Available {
+			return m, m.showToast("Not in library", ToastInfo, toastShort)
+		}
+		// Queue all available tracks from section and play selected
+		var songs []api.Song
+		var startIdx int
+		for _, t := range tracks {
+			if t.Available {
+				if t.Song.ID == dt.Song.ID {
+					startIdx = len(songs)
+				}
+				songs = append(songs, t.Song)
+			}
+		}
+		if len(songs) == 0 {
+			return m, nil
+		}
+		m.pl.Queue().Set(songs, startIdx)
+		song := dt.Song
+		streamURL := m.api.StreamURL(song.ID)
+		return m, func() tea.Msg {
+			if err := m.pl.Play(song, streamURL); err != nil {
+				return ShowToastMsg{Text: fmt.Sprintf("Play error: %v", err), Level: ToastError}
+			}
+			go m.api.Scrobble(song.ID) //nolint:errcheck
+			return ShowToastMsg{Text: fmt.Sprintf("Now playing: %s — %s", song.Title, song.Artist), Level: ToastSuccess}
+		}
+
+	case secLBFreshReleases:
+		if m.discoverItem >= len(m.lbFreshReleases) {
+			return m, nil
+		}
+		dr := m.lbFreshReleases[m.discoverItem]
+		if !dr.Available {
+			return m, m.showToast("Not in library", ToastInfo, toastShort)
+		}
+		m.pushNav(dr.Album.Name)
+		return m.loadWithSpinner(loadAlbumCmd(m.api, dr.Album.ID))
+	}
+
+	return m, nil
 }
