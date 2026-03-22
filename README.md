@@ -81,6 +81,10 @@ Press `o` to discover and connect to a Sonos speaker or group. Playback routes d
 
 ![Player bar with Sonos group](docs/sonos.png)
 
+## Similar Songs
+
+The "Similar" quick action uses your server's `getSimilarSongs` endpoint, which typically requires a last.fm API key configured on the server side (e.g. `LAST_FM_API_KEY` in Gonic, or Last.fm scrobbling enabled in Navidrome).
+
 ## ListenBrainz
 
 Optional. Add to config to enable trending tracks, fresh releases, and personalised recommendations:

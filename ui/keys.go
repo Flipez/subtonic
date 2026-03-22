@@ -34,6 +34,7 @@ type globalKeys struct {
 	SonosToggle  key.Binding
 	HelpToggle   key.Binding
 	QuickActions key.Binding
+	Info         key.Binding
 }
 
 var GlobalKeys = globalKeys{
@@ -68,4 +69,5 @@ var GlobalKeys = globalKeys{
 	SonosToggle:  key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "toggle sonos output")),
 	HelpToggle:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	QuickActions: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "quick actions")),
+	Info:         key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "info")),
 }

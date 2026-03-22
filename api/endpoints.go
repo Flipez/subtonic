@@ -214,6 +214,22 @@ func (c *Client) GetSimilarSongs2(id string, count int) ([]Song, error) {
 	return body.SimilarSongs2.Songs, nil
 }
 
+func (c *Client) GetArtistInfo2(id string) (*ArtistInfo, error) {
+	body, err := c.get("getArtistInfo2", url.Values{"id": {id}})
+	if err != nil {
+		return nil, err
+	}
+	return body.ArtistInfo2, nil
+}
+
+func (c *Client) GetAlbumInfo2(id string) (*AlbumInfo, error) {
+	body, err := c.get("getAlbumInfo2", url.Values{"id": {id}})
+	if err != nil {
+		return nil, err
+	}
+	return body.AlbumInfo, nil
+}
+
 func (c *Client) GetTopSongs(artist string, count int) ([]Song, error) {
 	body, err := c.get("getTopSongs", url.Values{
 		"artist": {artist},

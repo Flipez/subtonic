@@ -189,6 +189,12 @@ type Model struct {
 	// Quick actions popup
 	showQuickActions bool
 	quickActionsIdx  int
+
+	// Info popup (artist bio / album notes)
+	showInfo    bool
+	infoLoading bool
+	infoTitle   string
+	infoContent string
 }
 
 func New(client *api.Client, pl *player.Player, cfg config.Config, lb *listenbrainz.Client) Model {
@@ -273,6 +279,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Help popup: any key closes it; ? toggles.
 		if m.showHelp {
 			m.showHelp = false
+			return m, nil
+		}
+
+		// Info popup: any key closes it.
+		if m.showInfo {
+			m.showInfo = false
 			return m, nil
 		}
 
@@ -475,6 +487,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, GlobalKeys.QuickActions):
 			m.showQuickActions = !m.showQuickActions
+			return m, nil
+
+		case key.Matches(msg, GlobalKeys.Info):
+			switch m.viewType {
+			case ViewArtists:
+				if artists, ok := m.viewData.([]api.Artist); ok {
+					idx := m.table.Cursor()
+					if idx >= 0 && idx < len(artists) {
+						a := artists[idx]
+						m.showInfo = true
+						m.infoLoading = true
+						m.infoTitle = a.Name
+						m.infoContent = ""
+						return m, tea.Batch(loadInfoCmd(m.api, "artist", a.ID, a.Name), m.spinner.Tick)
+					}
+				}
+			case ViewAlbums:
+				if albums, ok := m.viewData.([]api.Album); ok {
+					idx := m.table.Cursor()
+					if idx >= 0 && idx < len(albums) {
+						al := albums[idx]
+						m.showInfo = true
+						m.infoLoading = true
+						m.infoTitle = al.Name
+						m.infoContent = ""
+						return m, tea.Batch(loadInfoCmd(m.api, "album", al.ID, al.Name), m.spinner.Tick)
+					}
+				}
+			}
 			return m, nil
 
 		case key.Matches(msg, GlobalKeys.Tab1):
@@ -770,6 +811,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setView(ViewSongs, msg.Songs)
 		return m, nil
 
+	case InfoLoadedMsg:
+		m.infoLoading = false
+		if msg.Err != nil {
+			m.showInfo = false
+			return m, m.showToast(fmt.Sprintf("Error loading info: %v", msg.Err), ToastError, toastLong)
+		}
+		m.infoContent = msg.Content
+		return m, nil
+
 	case TopSongsLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
@@ -909,7 +959,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case spinner.TickMsg:
-		if m.loading {
+		if m.loading || m.infoLoading {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -2203,6 +2253,19 @@ func (m Model) View() tea.View {
 			y = 0
 		}
 		layers = append(layers, lipgloss.NewLayer(popup).X(x).Y(y).Z(10))
+	} else if m.showInfo {
+		popup := m.renderInfoPopup()
+		popupW := lipgloss.Width(popup)
+		popupH := lipgloss.Height(popup)
+		x := (m.width - popupW) / 2
+		y := (m.height - popupH) / 2
+		if x < 0 {
+			x = 0
+		}
+		if y < 0 {
+			y = 0
+		}
+		layers = append(layers, lipgloss.NewLayer(popup).X(x).Y(y).Z(10))
 	} else if popup := m.renderToastPopup(); popup != "" {
 		popupW := lipgloss.Width(popup)
 		x := m.width - popupW - 1
@@ -2217,6 +2280,46 @@ func (m Model) View() tea.View {
 	return tea.View{Content: canvas.Render(), AltScreen: true}
 }
 
+
+func (m *Model) renderInfoPopup() string {
+	maxW := 76
+	if m.width-8 < maxW {
+		maxW = m.width - 8
+	}
+	innerW := maxW - 6 // border (2) + padding left+right (4)
+	if innerW < 20 {
+		innerW = 20
+	}
+	maxLines := m.height - 10
+	if maxLines < 5 {
+		maxLines = 5
+	}
+
+	title := lipgloss.NewStyle().Bold(true).Render(m.infoTitle)
+	var body string
+	if m.infoLoading {
+		body = m.spinner.View() + " Loading…"
+	} else {
+		wrapped := wordWrap(m.infoContent, innerW)
+		lines := strings.Split(wrapped, "\n")
+		truncated := false
+		if len(lines) > maxLines {
+			lines = lines[:maxLines]
+			truncated = true
+		}
+		body = strings.Join(lines, "\n")
+		if truncated {
+			body += "\n..."
+		}
+	}
+
+	inner := lipgloss.JoinVertical(lipgloss.Left, title, "", body)
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colorFocused).
+		Padding(1, 2).
+		Render(inner)
+}
 
 func (m *Model) renderToastPopup() string {
 	if len(m.toasts) == 0 {
@@ -2867,12 +2970,14 @@ func (m *Model) renderHelpPopup() string {
 		viewEntries = []entry{
 			{"enter", "browse albums"},
 			{"p", "shuffle play all"},
+			{"i", "artist info"},
 		}
 	case ViewAlbums:
 		viewTitle = "Albums"
 		viewEntries = []entry{
 			{"enter", "browse songs"},
 			{"p", "shuffle play all"},
+			{"i", "album info"},
 		}
 	case ViewPlaylists:
 		viewTitle = "Playlists"

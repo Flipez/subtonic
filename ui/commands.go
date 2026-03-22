@@ -2,6 +2,8 @@ package ui
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -157,6 +159,70 @@ func loadDiscoverDataCmd(client *api.Client) tea.Cmd {
 	}
 }
 
+
+var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
+
+func stripHTML(s string) string {
+	s = htmlTagRe.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&#39;", "'")
+	return strings.TrimSpace(s)
+}
+
+func wordWrap(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+	var lines []string
+	line := ""
+	for _, word := range words {
+		if line == "" {
+			line = word
+		} else if len(line)+1+len(word) <= width {
+			line += " " + word
+		} else {
+			lines = append(lines, line)
+			line = word
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func loadInfoCmd(client *api.Client, kind, id, title string) tea.Cmd {
+	return func() tea.Msg {
+		switch kind {
+		case "artist":
+			info, err := client.GetArtistInfo2(id)
+			if err != nil {
+				return InfoLoadedMsg{Err: err}
+			}
+			if info == nil || info.Biography == "" {
+				return InfoLoadedMsg{Title: title, Content: "No biography available."}
+			}
+			return InfoLoadedMsg{Title: title, Content: stripHTML(info.Biography)}
+		case "album":
+			info, err := client.GetAlbumInfo2(id)
+			if err != nil {
+				return InfoLoadedMsg{Err: err}
+			}
+			if info == nil || info.Notes == "" {
+				return InfoLoadedMsg{Title: title, Content: "No information available."}
+			}
+			return InfoLoadedMsg{Title: title, Content: stripHTML(info.Notes)}
+		}
+		return InfoLoadedMsg{Err: fmt.Errorf("unknown kind: %s", kind)}
+	}
+}
 
 func stringMatchesFold(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
