@@ -32,9 +32,11 @@ type globalKeys struct {
 	AddTo       key.Binding
 	NewPlaylist key.Binding
 	SonosToggle  key.Binding
-	HelpToggle   key.Binding
-	QuickActions key.Binding
-	Info         key.Binding
+	HelpToggle    key.Binding
+	QuickActions  key.Binding
+	Info          key.Binding
+	SubTabPrev    key.Binding
+	SubTabNext    key.Binding
 }
 
 var GlobalKeys = globalKeys{
@@ -70,4 +72,6 @@ var GlobalKeys = globalKeys{
 	HelpToggle:   key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	QuickActions: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "quick actions")),
 	Info:         key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "info")),
+	SubTabPrev:   key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev sub-tab")),
+	SubTabNext:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next sub-tab")),
 }

@@ -162,11 +162,14 @@ type LBPopularLoadedMsg struct {
 	Err        error
 }
 
-type LBPlaylistLoadedMsg struct {
+type LBCreatedForPlaylist struct {
 	Name   string
 	Tracks []DiscoverTrack
-	Kind   string
-	Err    error
+}
+
+type LBCreatedForPlaylistsLoadedMsg struct {
+	Playlists []LBCreatedForPlaylist
+	Err       error
 }
 
 type LBRecommendedLoadedMsg struct {

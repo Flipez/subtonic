@@ -330,50 +330,34 @@ func loadLBPopularCmd(lb *listenbrainz.Client, subsonic *api.Client, artist, tra
 	}
 }
 
-func loadLBPlaylistCmd(lb *listenbrainz.Client, subsonic *api.Client, username, kind string) tea.Cmd {
+func loadLBCreatedForPlaylistsCmd(lb *listenbrainz.Client, subsonic *api.Client, username string) tea.Cmd {
 	return func() tea.Msg {
 		playlists, err := lb.GetPlaylistsCreatedFor(username)
 		if err != nil {
-			return LBPlaylistLoadedMsg{Err: err, Kind: kind}
+			return LBCreatedForPlaylistsLoadedMsg{Err: err}
 		}
-		// Find the latest matching playlist by kind
-		var match *listenbrainz.Playlist
+		var result []LBCreatedForPlaylist
 		for i := range playlists {
 			p := &playlists[i]
-			titleLower := strings.ToLower(p.Title)
-			algoLower := strings.ToLower(p.Algorithm)
-			switch kind {
-			case "daily-jams":
-				if strings.Contains(titleLower, "daily jams") || strings.Contains(algoLower, "daily-jams") {
-					match = p
+			// The createdfor endpoint returns empty tracks — fetch the full playlist
+			if len(p.Tracks) == 0 && p.MBID != "" {
+				full, err := lb.GetPlaylist(p.MBID)
+				if err != nil || full == nil {
+					continue
 				}
-			case "weekly-exploration":
-				if strings.Contains(titleLower, "weekly exploration") || strings.Contains(algoLower, "weekly-exploration") {
-					match = p
+				p = full
+			}
+			var tracks []DiscoverTrack
+			for _, t := range p.Tracks {
+				if t.TrackName != "" && t.ArtistName != "" {
+					tracks = append(tracks, matchTrack(subsonic, t.ArtistName, t.TrackName))
 				}
 			}
-			if match != nil {
-				break
+			if len(tracks) > 0 {
+				result = append(result, LBCreatedForPlaylist{Name: p.Title, Tracks: tracks})
 			}
 		}
-		if match == nil {
-			return LBPlaylistLoadedMsg{Kind: kind}
-		}
-		// The createdfor endpoint returns empty tracks — fetch the full playlist
-		if len(match.Tracks) == 0 && match.MBID != "" {
-			full, err := lb.GetPlaylist(match.MBID)
-			if err != nil {
-				return LBPlaylistLoadedMsg{Name: match.Title, Kind: kind}
-			}
-			match = full
-		}
-		var result []DiscoverTrack
-		for _, t := range match.Tracks {
-			if t.TrackName != "" && t.ArtistName != "" {
-				result = append(result, matchTrack(subsonic, t.ArtistName, t.TrackName))
-			}
-		}
-		return LBPlaylistLoadedMsg{Name: match.Title, Tracks: result, Kind: kind}
+		return LBCreatedForPlaylistsLoadedMsg{Playlists: result}
 	}
 }
 
