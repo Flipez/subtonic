@@ -584,6 +584,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Home/Discover grid navigation
 		if m.viewType == ViewDiscover || m.viewType == ViewHome {
+			if m.viewType == ViewDiscover {
+				if key.Matches(msg, GlobalKeys.SubTabPrev) && m.discoverSubTab > SubTabForYou {
+					m.discoverSubTab--
+					m.discoverSection, m.discoverItem = 0, 0
+					return m, nil
+				}
+				if key.Matches(msg, GlobalKeys.SubTabNext) && m.discoverSubTab < SubTabLibrary {
+					m.discoverSubTab++
+					m.discoverSection, m.discoverItem = 0, 0
+					return m, nil
+				}
+			}
 			switch msg.String() {
 			case "up", "k":
 				return m.discoverMove(-1, 0)
@@ -593,20 +605,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m.discoverMove(0, -1)
 			case "right", "l":
 				return m.discoverMove(0, 1)
-			case "[":
-				if m.viewType == ViewDiscover && m.discoverSubTab > SubTabForYou {
-					m.discoverSubTab--
-					m.discoverSection = 0
-					m.discoverItem = 0
-				}
-				return m, nil
-			case "]":
-				if m.viewType == ViewDiscover && m.discoverSubTab < SubTabLibrary {
-					m.discoverSubTab++
-					m.discoverSection = 0
-					m.discoverItem = 0
-				}
-				return m, nil
 			}
 			return m, nil
 		}

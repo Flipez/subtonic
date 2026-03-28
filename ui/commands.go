@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -336,16 +337,30 @@ func loadLBCreatedForPlaylistsCmd(lb *listenbrainz.Client, subsonic *api.Client,
 		if err != nil {
 			return LBCreatedForPlaylistsLoadedMsg{Err: err}
 		}
-		var result []LBCreatedForPlaylist
+		// Fetch full playlist data in parallel (createdfor endpoint returns empty tracks)
+		fetched := make([]*listenbrainz.Playlist, len(playlists))
+		var wg sync.WaitGroup
 		for i := range playlists {
 			p := &playlists[i]
-			// The createdfor endpoint returns empty tracks — fetch the full playlist
 			if len(p.Tracks) == 0 && p.MBID != "" {
-				full, err := lb.GetPlaylist(p.MBID)
-				if err != nil || full == nil {
-					continue
-				}
-				p = full
+				wg.Add(1)
+				go func(idx int, mbid string) {
+					defer wg.Done()
+					full, err := lb.GetPlaylist(mbid)
+					if err == nil && full != nil {
+						fetched[idx] = full
+					}
+				}(i, p.MBID)
+			} else {
+				fetched[i] = p
+			}
+		}
+		wg.Wait()
+
+		var result []LBCreatedForPlaylist
+		for _, p := range fetched {
+			if p == nil {
+				continue
 			}
 			var tracks []DiscoverTrack
 			for _, t := range p.Tracks {

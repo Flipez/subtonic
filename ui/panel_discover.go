@@ -254,84 +254,16 @@ func splitLines(s string) []string {
 	return lines
 }
 
-func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {
-	if len(albums) == 0 {
-		return ""
-	}
-
-	n := len(albums)
-	maxVisible := maxVisibleCards
-	if n < maxVisible {
-		maxVisible = n
-	}
-	cardW := contentW / maxVisible
-	if cardW < 14 {
-		cardW = 14
-	}
-
-	// Scroll to keep selected item visible
-	offset := 0
-	if focused && m.discoverItem >= maxVisible {
-		offset = m.discoverItem - maxVisible + 1
-	}
-	end := offset + maxVisible
-	if end > n {
-		end = n
-	}
-	visibleAlbums := albums[offset:end]
-
-	visibleCount := len(visibleAlbums)
-	var cards []string
-	for i, a := range visibleAlbums {
-		actualIdx := offset + i
-		selected := focused && actualIdx == m.discoverItem
-
-		w := cardW
-		if i == visibleCount-1 {
-			w = contentW - cardW*(visibleCount-1)
-		}
-		iw := w - 2 // content area inside border
-
-		name := truncateStr(a.Name, iw)
-		var subtitleParts []string
-		if a.Year > 0 {
-			subtitleParts = append(subtitleParts, fmt.Sprintf("%d", a.Year))
-		}
-		if a.Artist != "" {
-			subtitleParts = append(subtitleParts, a.Artist)
-		}
-		subtitle := truncateStr(strings.Join(subtitleParts, " · "), iw)
-
-		var borderColor color.Color = colorUnfocused
-		nameStyle := lipgloss.NewStyle().Foreground(colorText)
-
-		if selected {
-			borderColor = colorFocused
-			nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
-		}
-
-		content := nameStyle.Render(name) + "\n" +
-			SubtextStyle.Render(subtitle)
-
-		card := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(borderColor).
-			Width(w).
-			Height(2).
-			Render(content)
-
-		cards = append(cards, card)
-	}
-
-	return lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+type cardItem struct {
+	name     string
+	subtitle string
 }
 
-func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW int, focused bool) string {
-	if len(playlists) == 0 {
+func (m *Model) renderCardRow(items []cardItem, contentW int, focused bool) string {
+	n := len(items)
+	if n == 0 {
 		return ""
 	}
-
-	n := len(playlists)
 	maxVisible := maxVisibleCards
 	if n < maxVisible {
 		maxVisible = n
@@ -349,10 +281,10 @@ func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW in
 	if end > n {
 		end = n
 	}
-	visible := playlists[offset:end]
+	visible := items[offset:end]
 
 	var cards []string
-	for i, pl := range visible {
+	for i, item := range visible {
 		actualIdx := offset + i
 		selected := focused && actualIdx == m.discoverItem
 
@@ -362,9 +294,6 @@ func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW in
 		}
 		iw := w - 2
 
-		name := truncateStr(pl.Name, iw)
-		subtitle := truncateStr(fmt.Sprintf("%d tracks", pl.SongCount), iw)
-
 		var borderColor color.Color = colorUnfocused
 		nameStyle := lipgloss.NewStyle().Foreground(colorText)
 		if selected {
@@ -372,8 +301,8 @@ func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW in
 			nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
 		}
 
-		content := nameStyle.Render(name) + "\n" +
-			SubtextStyle.Render(subtitle)
+		content := nameStyle.Render(truncateStr(item.name, iw)) + "\n" +
+			SubtextStyle.Render(truncateStr(item.subtitle, iw))
 
 		card := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -384,8 +313,30 @@ func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW in
 
 		cards = append(cards, card)
 	}
-
 	return lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+}
+
+func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {
+	items := make([]cardItem, len(albums))
+	for i, a := range albums {
+		var subtitleParts []string
+		if a.Year > 0 {
+			subtitleParts = append(subtitleParts, fmt.Sprintf("%d", a.Year))
+		}
+		if a.Artist != "" {
+			subtitleParts = append(subtitleParts, a.Artist)
+		}
+		items[i] = cardItem{name: a.Name, subtitle: strings.Join(subtitleParts, " · ")}
+	}
+	return m.renderCardRow(items, contentW, focused)
+}
+
+func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW int, focused bool) string {
+	items := make([]cardItem, len(playlists))
+	for i, pl := range playlists {
+		items[i] = cardItem{name: pl.Name, subtitle: fmt.Sprintf("%d tracks", pl.SongCount)}
+	}
+	return m.renderCardRow(items, contentW, focused)
 }
 
 func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused bool) string {

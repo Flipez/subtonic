@@ -51,7 +51,7 @@ func SaveState(s State) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(s, "", "  ")
+	data, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
