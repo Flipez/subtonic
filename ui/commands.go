@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -330,50 +331,48 @@ func loadLBPopularCmd(lb *listenbrainz.Client, subsonic *api.Client, artist, tra
 	}
 }
 
-func loadLBPlaylistCmd(lb *listenbrainz.Client, subsonic *api.Client, username, kind string) tea.Cmd {
+func loadLBCreatedForPlaylistsCmd(lb *listenbrainz.Client, subsonic *api.Client, username string) tea.Cmd {
 	return func() tea.Msg {
 		playlists, err := lb.GetPlaylistsCreatedFor(username)
 		if err != nil {
-			return LBPlaylistLoadedMsg{Err: err, Kind: kind}
+			return LBCreatedForPlaylistsLoadedMsg{Err: err}
 		}
-		// Find the latest matching playlist by kind
-		var match *listenbrainz.Playlist
+		// Fetch full playlist data in parallel (createdfor endpoint returns empty tracks)
+		fetched := make([]*listenbrainz.Playlist, len(playlists))
+		var wg sync.WaitGroup
 		for i := range playlists {
 			p := &playlists[i]
-			titleLower := strings.ToLower(p.Title)
-			algoLower := strings.ToLower(p.Algorithm)
-			switch kind {
-			case "daily-jams":
-				if strings.Contains(titleLower, "daily jams") || strings.Contains(algoLower, "daily-jams") {
-					match = p
+			if len(p.Tracks) == 0 && p.MBID != "" {
+				wg.Add(1)
+				go func(idx int, mbid string) {
+					defer wg.Done()
+					full, err := lb.GetPlaylist(mbid)
+					if err == nil && full != nil {
+						fetched[idx] = full
+					}
+				}(i, p.MBID)
+			} else {
+				fetched[i] = p
+			}
+		}
+		wg.Wait()
+
+		var result []LBCreatedForPlaylist
+		for _, p := range fetched {
+			if p == nil {
+				continue
+			}
+			var tracks []DiscoverTrack
+			for _, t := range p.Tracks {
+				if t.TrackName != "" && t.ArtistName != "" {
+					tracks = append(tracks, matchTrack(subsonic, t.ArtistName, t.TrackName))
 				}
-			case "weekly-exploration":
-				if strings.Contains(titleLower, "weekly exploration") || strings.Contains(algoLower, "weekly-exploration") {
-					match = p
-				}
 			}
-			if match != nil {
-				break
+			if len(tracks) > 0 {
+				result = append(result, LBCreatedForPlaylist{Name: p.Title, Tracks: tracks})
 			}
 		}
-		if match == nil {
-			return LBPlaylistLoadedMsg{Kind: kind}
-		}
-		// The createdfor endpoint returns empty tracks — fetch the full playlist
-		if len(match.Tracks) == 0 && match.MBID != "" {
-			full, err := lb.GetPlaylist(match.MBID)
-			if err != nil {
-				return LBPlaylistLoadedMsg{Name: match.Title, Kind: kind}
-			}
-			match = full
-		}
-		var result []DiscoverTrack
-		for _, t := range match.Tracks {
-			if t.TrackName != "" && t.ArtistName != "" {
-				result = append(result, matchTrack(subsonic, t.ArtistName, t.TrackName))
-			}
-		}
-		return LBPlaylistLoadedMsg{Name: match.Title, Tracks: result, Kind: kind}
+		return LBCreatedForPlaylistsLoadedMsg{Playlists: result}
 	}
 }
 

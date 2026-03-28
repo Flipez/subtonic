@@ -100,6 +100,26 @@ func (m *Model) renderNavBar(contentW int) string {
 	return title + strings.Repeat(" ", gap) + tabBar
 }
 
+func (m *Model) renderDiscoverSubTabs() string {
+	subTabs := []struct {
+		label  string
+		subTab DiscoverSubTab
+	}{
+		{"For You", SubTabForYou},
+		{"Charts", SubTabCharts},
+		{"Library", SubTabLibrary},
+	}
+	var parts []string
+	for _, st := range subTabs {
+		if st.subTab == m.discoverSubTab {
+			parts = append(parts, NavTabActiveStyle.Render(st.label))
+		} else {
+			parts = append(parts, NavTabStyle.Render(st.label))
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
 func (m *Model) renderBreadcrumb() string {
 	tabNames := map[Tab]string{
 		TabHome:      "Home",
@@ -318,6 +338,7 @@ func (m *Model) renderHelpPopup() string {
 		viewEntries = []entry{
 			{"enter", "explore section"},
 			{"↑↓←→ / hjkl", "navigate grid"},
+			{"[ / ]", "switch sub-tab"},
 		}
 	case ViewPodcasts:
 		viewTitle = "Podcasts"

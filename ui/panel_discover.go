@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/Flipez/subtonic/api"
+	"github.com/Flipez/subtonic/config"
 )
 
 const maxVisibleCards = 5
@@ -16,6 +17,9 @@ const maxVisibleCards = 5
 // homeSections returns sections for the Home tab (recently/most played).
 func (m *Model) homeSections() []discoverSec {
 	var secs []discoverSec
+	if len(m.recentPlaylists) > 0 {
+		secs = append(secs, discoverSec{label: "Last Played Playlists", kind: secRecentPlaylists, count: len(m.recentPlaylists)})
+	}
 	if len(m.discoverRecent) > 0 {
 		secs = append(secs, discoverSec{label: "Recently Played", kind: secRecent, count: len(m.discoverRecent)})
 	}
@@ -30,42 +34,47 @@ func (m *Model) currentSections() []discoverSec {
 	if m.viewType == ViewHome {
 		return m.homeSections()
 	}
-	return m.discoverSections()
+	switch m.discoverSubTab {
+	case SubTabCharts:
+		return m.chartsSections()
+	case SubTabLibrary:
+		return m.librarySections()
+	default:
+		return m.forYouSections()
+	}
 }
 
-// discoverSections returns sections for the Discover tab (algorithmic/LB content).
-func (m *Model) discoverSections() []discoverSec {
+func (m *Model) forYouSections() []discoverSec {
 	var secs []discoverSec
 	if len(m.lbRecommended) > 0 {
-		secs = append(secs, discoverSec{label: "Recommended for You (ListenBrainz)", kind: secLBRecommended, count: len(m.lbRecommended)})
-	}
-	if len(m.lbTrending) > 0 {
-		secs = append(secs, discoverSec{label: "Trending (ListenBrainz)", kind: secLBTrending, count: len(m.lbTrending)})
-	}
-	if len(m.lbFreshReleases) > 0 {
-		secs = append(secs, discoverSec{label: "Fresh Releases (ListenBrainz)", kind: secLBFreshReleases, count: len(m.lbFreshReleases)})
+		secs = append(secs, discoverSec{label: "Recommended for You", kind: secLBRecommended, count: len(m.lbRecommended)})
 	}
 	if len(m.lbPopular) > 0 {
-		label := "Popular by Artist (ListenBrainz)"
+		label := "Popular by Artist"
 		if m.lbPopularArtist != "" {
-			label = "Popular by " + m.lbPopularArtist + " (ListenBrainz)"
+			label = "Popular by " + m.lbPopularArtist
 		}
 		secs = append(secs, discoverSec{label: label, kind: secLBPopular, count: len(m.lbPopular)})
 	}
-	if len(m.lbDailyJams) > 0 {
-		label := "Daily Jams (ListenBrainz)"
-		if m.lbDailyJamsName != "" {
-			label = m.lbDailyJamsName
-		}
-		secs = append(secs, discoverSec{label: label, kind: secLBDailyJams, count: len(m.lbDailyJams)})
+	for i, pl := range m.lbCreatedForPlaylists {
+		secs = append(secs, discoverSec{label: pl.Name, kind: secLBCreatedFor, count: len(pl.Tracks), index: i})
 	}
-	if len(m.lbWeekly) > 0 {
-		label := "Weekly Exploration (ListenBrainz)"
-		if m.lbWeeklyName != "" {
-			label = m.lbWeeklyName
-		}
-		secs = append(secs, discoverSec{label: label, kind: secLBWeekly, count: len(m.lbWeekly)})
+	return secs
+}
+
+func (m *Model) chartsSections() []discoverSec {
+	var secs []discoverSec
+	if len(m.lbTrending) > 0 {
+		secs = append(secs, discoverSec{label: "Trending", kind: secLBTrending, count: len(m.lbTrending)})
 	}
+	if len(m.lbFreshReleases) > 0 {
+		secs = append(secs, discoverSec{label: "Fresh Releases", kind: secLBFreshReleases, count: len(m.lbFreshReleases)})
+	}
+	return secs
+}
+
+func (m *Model) librarySections() []discoverSec {
+	var secs []discoverSec
 	if len(m.discoverNewest) > 0 {
 		secs = append(secs, discoverSec{label: "Recently Added", kind: secNewest, count: len(m.discoverNewest)})
 	}
@@ -81,8 +90,8 @@ const (
 	secLBTrending
 	secLBFreshReleases
 	secLBPopular
-	secLBDailyJams
-	secLBWeekly
+	secRecentPlaylists
+	secLBCreatedFor
 	secLBRecommended
 )
 
@@ -90,6 +99,7 @@ type discoverSec struct {
 	label string
 	kind  secKind
 	count int
+	index int // used by secLBCreatedFor to index into lbCreatedForPlaylists
 }
 
 func (m *Model) renderHome(contentW, contentH int) string {
@@ -97,7 +107,7 @@ func (m *Model) renderHome(contentW, contentH int) string {
 }
 
 func (m *Model) renderDiscover(contentW, contentH int) string {
-	return m.renderSectionGrid(m.discoverSections(), contentW, contentH)
+	return m.renderSectionGrid(m.currentSections(), contentW, contentH)
 }
 
 func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) string {
@@ -151,6 +161,8 @@ func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) st
 
 		var body string
 		switch s.kind {
+		case secRecentPlaylists:
+			body = m.renderPlaylistRow(m.recentPlaylists, contentW, isFocused)
 		case secRecent:
 			body = m.renderAlbumRow(m.discoverRecent, contentW, isFocused)
 		case secNewest:
@@ -163,10 +175,10 @@ func (m *Model) renderSectionGrid(secs []discoverSec, contentW, contentH int) st
 			body = m.renderReleaseRow(m.lbFreshReleases, contentW, isFocused)
 		case secLBPopular:
 			body = m.renderTrackRow(m.lbPopular, contentW, isFocused)
-		case secLBDailyJams:
-			body = m.renderTrackRow(m.lbDailyJams, contentW, isFocused)
-		case secLBWeekly:
-			body = m.renderTrackRow(m.lbWeekly, contentW, isFocused)
+		case secLBCreatedFor:
+			if s.index < len(m.lbCreatedForPlaylists) {
+				body = m.renderTrackRow(m.lbCreatedForPlaylists[s.index].Tracks, contentW, isFocused)
+			}
 		case secLBRecommended:
 			body = m.renderTrackRow(m.lbRecommended, contentW, isFocused)
 		}
@@ -242,12 +254,16 @@ func splitLines(s string) []string {
 	return lines
 }
 
-func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {
-	if len(albums) == 0 {
+type cardItem struct {
+	name     string
+	subtitle string
+}
+
+func (m *Model) renderCardRow(items []cardItem, contentW int, focused bool) string {
+	n := len(items)
+	if n == 0 {
 		return ""
 	}
-
-	n := len(albums)
 	maxVisible := maxVisibleCards
 	if n < maxVisible {
 		maxVisible = n
@@ -257,7 +273,6 @@ func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) s
 		cardW = 14
 	}
 
-	// Scroll to keep selected item visible
 	offset := 0
 	if focused && m.discoverItem >= maxVisible {
 		offset = m.discoverItem - maxVisible + 1
@@ -266,54 +281,62 @@ func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) s
 	if end > n {
 		end = n
 	}
-	visibleAlbums := albums[offset:end]
+	visible := items[offset:end]
 
-	visibleCount := len(visibleAlbums)
 	var cards []string
-	for i, a := range visibleAlbums {
+	for i, item := range visible {
 		actualIdx := offset + i
 		selected := focused && actualIdx == m.discoverItem
 
 		w := cardW
-		if i == visibleCount-1 {
-			w = contentW - cardW*(visibleCount-1)
+		if i == len(visible)-1 {
+			w = contentW - cardW*(len(visible)-1)
 		}
-		iw := w - 2 // content area inside border
-
-		name := truncateStr(a.Name, iw)
-		artist := truncateStr(a.Artist, iw)
-		var detailParts []string
-		if a.Year > 0 {
-			detailParts = append(detailParts, fmt.Sprintf("%d", a.Year))
-		}
-		if a.SongCount > 0 {
-			detailParts = append(detailParts, fmt.Sprintf("%d tracks", a.SongCount))
-		}
-		detail := truncateStr(strings.Join(detailParts, " · "), iw)
+		iw := w - 2
 
 		var borderColor color.Color = colorUnfocused
 		nameStyle := lipgloss.NewStyle().Foreground(colorText)
-
 		if selected {
 			borderColor = colorFocused
 			nameStyle = lipgloss.NewStyle().Foreground(colorHighlight).Bold(true)
 		}
 
-		content := nameStyle.Render(name) + "\n" +
-			SubtextStyle.Render(artist) + "\n" +
-			lipgloss.NewStyle().Foreground(colorDimText).Render(detail)
+		content := nameStyle.Render(truncateStr(item.name, iw)) + "\n" +
+			SubtextStyle.Render(truncateStr(item.subtitle, iw))
 
 		card := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(borderColor).
 			Width(w).
-			Height(3).
+			Height(2).
 			Render(content)
 
 		cards = append(cards, card)
 	}
-
 	return lipgloss.JoinHorizontal(lipgloss.Top, cards...)
+}
+
+func (m *Model) renderAlbumRow(albums []api.Album, contentW int, focused bool) string {
+	items := make([]cardItem, len(albums))
+	for i, a := range albums {
+		var subtitleParts []string
+		if a.Year > 0 {
+			subtitleParts = append(subtitleParts, fmt.Sprintf("%d", a.Year))
+		}
+		if a.Artist != "" {
+			subtitleParts = append(subtitleParts, a.Artist)
+		}
+		items[i] = cardItem{name: a.Name, subtitle: strings.Join(subtitleParts, " · ")}
+	}
+	return m.renderCardRow(items, contentW, focused)
+}
+
+func (m *Model) renderPlaylistRow(playlists []config.RecentPlaylist, contentW int, focused bool) string {
+	items := make([]cardItem, len(playlists))
+	for i, pl := range playlists {
+		items[i] = cardItem{name: pl.Name, subtitle: fmt.Sprintf("%d tracks", pl.SongCount)}
+	}
+	return m.renderCardRow(items, contentW, focused)
 }
 
 func (m *Model) renderTrackRow(tracks []DiscoverTrack, contentW int, focused bool) string {
@@ -553,6 +576,14 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 	sec := secs[m.discoverSection]
 
 	switch sec.kind {
+	case secRecentPlaylists:
+		if m.discoverItem < len(m.recentPlaylists) {
+			pl := m.recentPlaylists[m.discoverItem]
+			m.currentPlaylistID = pl.ID
+			m.pushNav(pl.Name)
+			return m.loadWithSpinner(loadPlaylistCmd(m.api, pl.ID))
+		}
+
 	case secRecent:
 		if m.discoverItem < len(m.discoverRecent) {
 			album := m.discoverRecent[m.discoverItem]
@@ -574,17 +605,17 @@ func (m *Model) handleDiscoverEnter() (tea.Model, tea.Cmd) {
 			return m.loadWithSpinner(loadAlbumCmd(m.api, album.ID))
 		}
 
-	case secLBTrending, secLBPopular, secLBDailyJams, secLBWeekly, secLBRecommended:
+	case secLBTrending, secLBPopular, secLBCreatedFor, secLBRecommended:
 		var tracks []DiscoverTrack
 		switch sec.kind {
 		case secLBTrending:
 			tracks = m.lbTrending
 		case secLBPopular:
 			tracks = m.lbPopular
-		case secLBDailyJams:
-			tracks = m.lbDailyJams
-		case secLBWeekly:
-			tracks = m.lbWeekly
+		case secLBCreatedFor:
+			if sec.index < len(m.lbCreatedForPlaylists) {
+				tracks = m.lbCreatedForPlaylists[sec.index].Tracks
+			}
 		case secLBRecommended:
 			tracks = m.lbRecommended
 		}

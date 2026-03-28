@@ -30,6 +30,14 @@ const (
 	TabSearch
 )
 
+type DiscoverSubTab int
+
+const (
+	SubTabForYou  DiscoverSubTab = iota
+	SubTabCharts
+	SubTabLibrary
+)
+
 const (
 	toastShort = 2 * time.Second
 	toastLong  = 5 * time.Second
@@ -150,8 +158,9 @@ type Model struct {
 	discoverRecent   []api.Album
 	discoverNewest   []api.Album
 	discoverFrequent []api.Album
-	discoverSection  int // which section is focused
-	discoverItem     int // which item within section
+	discoverSection  int            // which section is focused
+	discoverItem     int            // which item within section
+	discoverSubTab   DiscoverSubTab // which Discover sub-tab is active
 
 	// ListenBrainz integration
 	lb              *listenbrainz.Client
@@ -159,13 +168,11 @@ type Model struct {
 	lbFreshReleases []DiscoverRelease
 	lbPopular       []DiscoverTrack
 	lbPopularArtist string
-	lbDailyJams     []DiscoverTrack
-	lbDailyJamsName string
-	lbWeekly        []DiscoverTrack
-	lbWeeklyName    string
+	lbCreatedForPlaylists []LBCreatedForPlaylist
 	lbRecommended   []DiscoverTrack
 	lbCurrentArtist string
 	// Playlists (Subsonic)
+	recentPlaylists   []config.RecentPlaylist
 	playlists         []api.Playlist
 	pendingSongIDs    []string
 	pickerInput       textinput.Model
@@ -221,20 +228,23 @@ func New(client *api.Client, pl *player.Player, cfg config.Config, lb *listenbra
 	km.PageDown = key.NewBinding(key.WithKeys("pgdown", "f", "ctrl+f"), key.WithHelp("pgdn", "page down"))
 	t.KeyMap = km
 
+	state, _ := config.LoadState()
+
 	m := Model{
-		api:         client,
-		pl:          pl,
-		cfg:         cfg,
-		lb:          lb,
-		activeTab:   TabHome,
-		table:       t,
-		searchInput: input,
-		serverInput: serverInput,
-		pickerInput: pickerInput,
-		bar:         NewPlayerBar(0),
-		spinner:     sp,
-		viewType:    ViewHome,
-		viewData:    nil,
+		api:             client,
+		pl:              pl,
+		cfg:             cfg,
+		lb:              lb,
+		activeTab:       TabHome,
+		table:           t,
+		searchInput:     input,
+		serverInput:     serverInput,
+		pickerInput:     pickerInput,
+		bar:             NewPlayerBar(0),
+		spinner:         sp,
+		viewType:        ViewHome,
+		viewData:        nil,
+		recentPlaylists: state.RecentPlaylists,
 	}
 
 	return m
@@ -253,8 +263,7 @@ func (m Model) Init() tea.Cmd {
 	}
 	if m.lb.HasUsername() {
 		cmds = append(cmds,
-			loadLBPlaylistCmd(m.lb, m.api, m.lb.Username(), "daily-jams"),
-			loadLBPlaylistCmd(m.lb, m.api, m.lb.Username(), "weekly-exploration"),
+			loadLBCreatedForPlaylistsCmd(m.lb, m.api, m.lb.Username()),
 		)
 	}
 	if m.lb.HasAuth() {
@@ -575,6 +584,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Home/Discover grid navigation
 		if m.viewType == ViewDiscover || m.viewType == ViewHome {
+			if m.viewType == ViewDiscover {
+				if key.Matches(msg, GlobalKeys.SubTabPrev) && m.discoverSubTab > SubTabForYou {
+					m.discoverSubTab--
+					m.discoverSection, m.discoverItem = 0, 0
+					return m, nil
+				}
+				if key.Matches(msg, GlobalKeys.SubTabNext) && m.discoverSubTab < SubTabLibrary {
+					m.discoverSubTab++
+					m.discoverSection, m.discoverItem = 0, 0
+					return m, nil
+				}
+			}
 			switch msg.String() {
 			case "up", "k":
 				return m.discoverMove(-1, 0)
@@ -882,16 +903,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case LBPlaylistLoadedMsg:
-		if msg.Err == nil && len(msg.Tracks) > 0 {
-			switch msg.Kind {
-			case "daily-jams":
-				m.lbDailyJams = msg.Tracks
-				m.lbDailyJamsName = msg.Name
-			case "weekly-exploration":
-				m.lbWeekly = msg.Tracks
-				m.lbWeeklyName = msg.Name
-			}
+	case LBCreatedForPlaylistsLoadedMsg:
+		if msg.Err == nil {
+			m.lbCreatedForPlaylists = msg.Playlists
 		}
 		return m, nil
 
@@ -1257,10 +1271,7 @@ func (m *Model) refresh() (tea.Model, tea.Cmd) {
 			cmds = append(cmds, loadLBPopularCmd(m.lb, m.api, song.Artist, song.Title))
 		}
 		if m.lb.HasUsername() {
-			cmds = append(cmds,
-				loadLBPlaylistCmd(m.lb, m.api, m.lb.Username(), "daily-jams"),
-				loadLBPlaylistCmd(m.lb, m.api, m.lb.Username(), "weekly-exploration"),
-			)
+			cmds = append(cmds, loadLBCreatedForPlaylistsCmd(m.lb, m.api, m.lb.Username()))
 		}
 		if m.lb.HasAuth() {
 			cmds = append(cmds, loadLBRecommendedCmd(m.lb, m.api, m.lb.Username()))
@@ -1450,7 +1461,24 @@ func (m *Model) handleEnterPlaylists(idx int) (tea.Model, tea.Cmd) {
 	playlist := playlists[idx]
 	m.currentPlaylistID = playlist.ID
 	m.pushNav(playlist.Name)
+	m.recordRecentPlaylist(playlist)
 	return m.loadWithSpinner(loadPlaylistCmd(m.api, playlist.ID))
+}
+
+func (m *Model) recordRecentPlaylist(pl api.Playlist) {
+	entry := config.RecentPlaylist{ID: pl.ID, Name: pl.Name, SongCount: pl.SongCount}
+	var filtered []config.RecentPlaylist
+	for _, p := range m.recentPlaylists {
+		if p.ID != entry.ID {
+			filtered = append(filtered, p)
+		}
+	}
+	m.recentPlaylists = append([]config.RecentPlaylist{entry}, filtered...)
+	if len(m.recentPlaylists) > 5 {
+		m.recentPlaylists = m.recentPlaylists[:5]
+	}
+	//nolint:errcheck
+	config.SaveState(config.State{RecentPlaylists: m.recentPlaylists})
 }
 
 func (m *Model) handleEnterSongs(idx int) (tea.Model, tea.Cmd) {
@@ -1702,6 +1730,9 @@ func (m Model) View() tea.View {
 	// Breadcrumb line between header and content
 	breadcrumbLeft := " " + m.renderBreadcrumb()
 	breadcrumbRight := m.renderRowCounter()
+	if m.activeTab == TabDiscover && m.viewType == ViewDiscover {
+		breadcrumbRight = m.renderDiscoverSubTabs() + " "
+	}
 	breadcrumb := padLine(breadcrumbLeft, breadcrumbRight, cardW)
 
 	// Content dimensions for spinner placement
